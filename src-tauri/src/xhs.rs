@@ -327,9 +327,28 @@ fn python_from_shebang(bin: &Path) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
-fn home_dir() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
+pub(crate) fn home_dir() -> Option<PathBuf> {
+    python_home_dir_from(|key| std::env::var_os(key), cfg!(windows))
+}
+
+/// Match `pathlib.Path.home()` so cookie/bin paths agree with xiaohongshu-cli.
+pub(crate) fn python_home_dir_from(
+    get: impl Fn(&str) -> Option<std::ffi::OsString>,
+    windows: bool,
+) -> Option<PathBuf> {
+    let nonempty = |key: &str| get(key).filter(|value| !value.is_empty());
+    if windows {
+        if let Some(profile) = nonempty("USERPROFILE") {
+            return Some(PathBuf::from(profile));
+        }
+        if let (Some(drive), Some(path)) = (nonempty("HOMEDRIVE"), nonempty("HOMEPATH")) {
+            let mut home = PathBuf::from(drive);
+            home.push(path);
+            return Some(home);
+        }
+    }
+    nonempty("HOME")
+        .or_else(|| nonempty("USERPROFILE"))
         .map(PathBuf::from)
 }
 
@@ -397,32 +416,41 @@ pub(crate) fn sanitize_cli_env() -> Vec<(String, String)> {
         .into_iter()
         .filter(|dir| dir.is_dir())
         .collect();
-    if extras.is_empty() {
-        return env;
-    }
-
-    let current = env
-        .iter()
-        .find(|(key, _)| key == "PATH")
-        .map(|(_, value)| value.clone())
-        .unwrap_or_default();
-    let mut parts: Vec<PathBuf> = extras;
-    for dir in std::env::split_paths(&current) {
-        if !dir.as_os_str().is_empty() && !parts.contains(&dir) {
-            parts.push(dir);
+    if !extras.is_empty() {
+        let current = env
+            .iter()
+            .find(|(key, _)| key == "PATH")
+            .map(|(_, value)| value.clone())
+            .unwrap_or_default();
+        let mut parts: Vec<PathBuf> = extras;
+        for dir in std::env::split_paths(&current) {
+            if !dir.as_os_str().is_empty() && !parts.contains(&dir) {
+                parts.push(dir);
+            }
+        }
+        let merged = std::env::join_paths(parts)
+            .ok()
+            .and_then(|value| value.into_string().ok());
+        if let Some(merged) = merged {
+            if let Some((_, value)) = env.iter_mut().find(|(key, _)| key == "PATH") {
+                *value = merged;
+            } else {
+                env.push(("PATH".into(), merged));
+            }
         }
     }
-    let merged = std::env::join_paths(parts)
-        .ok()
-        .and_then(|value| value.into_string().ok());
-    if let Some(merged) = merged {
-        if let Some((_, value)) = env.iter_mut().find(|(key, _)| key == "PATH") {
-            *value = merged;
-        } else {
-            env.push(("PATH".into(), merged));
-        }
-    }
+    force_python_utf8(&mut env);
     env
+}
+
+/// Windows 默认控制台是 GBK。管道里的中文 NDJSON / `xhs --json` 必须按 UTF-8 读。
+pub(crate) fn force_python_utf8(env: &mut Vec<(String, String)>) {
+    env.retain(|(key, _)| {
+        let upper = key.to_ascii_uppercase();
+        upper != "PYTHONIOENCODING" && upper != "PYTHONUTF8"
+    });
+    env.push(("PYTHONIOENCODING".into(), "utf-8".into()));
+    env.push(("PYTHONUTF8".into(), "1".into()));
 }
 
 fn run_envelope(args: &[String], timeout_ms: u64) -> Result<Value, String> {
@@ -740,11 +768,11 @@ fn read_pipe_lines<T: Read>(pipe: Option<T>, tx: std::sync::mpsc::Sender<String>
 }
 
 fn read_pipe<T: Read>(pipe: Option<T>) -> String {
-    let mut buf = String::new();
+    let mut buf = Vec::new();
     if let Some(mut reader) = pipe {
-        let _ = reader.read_to_string(&mut buf);
+        let _ = reader.read_to_end(&mut buf);
     }
-    buf
+    String::from_utf8_lossy(&buf).into_owned()
 }
 
 pub fn extract_json_text(raw: &str) -> &str {
@@ -1118,5 +1146,61 @@ mod tests {
         assert!(!is_windows_apps_alias(Path::new(
             r"C:\Users\me\AppData\Local\Programs\Python\Python312\python.exe"
         )));
+    }
+
+    #[test]
+    fn windows_home_prefers_userprofile_over_git_home() {
+        let home = python_home_dir_from(
+            |key| match key {
+                "HOME" => Some("/c/Users/ada".into()),
+                "USERPROFILE" => Some(r"C:\Users\ada".into()),
+                _ => None,
+            },
+            true,
+        );
+        assert_eq!(home, Some(PathBuf::from(r"C:\Users\ada")));
+    }
+
+    #[test]
+    fn unix_home_uses_home_even_if_userprofile_exists() {
+        let home = python_home_dir_from(
+            |key| match key {
+                "HOME" => Some("/Users/ada".into()),
+                "USERPROFILE" => Some(r"C:\Users\ada".into()),
+                _ => None,
+            },
+            false,
+        );
+        assert_eq!(home, Some(PathBuf::from("/Users/ada")));
+    }
+
+    #[test]
+    fn forces_python_stdio_to_utf8() {
+        let mut env = vec![
+            ("PYTHONIOENCODING".into(), "gbk".into()),
+            ("PATH".into(), "/bin".into()),
+        ];
+        force_python_utf8(&mut env);
+        assert_eq!(
+            env.iter()
+                .find(|(key, _)| key == "PYTHONIOENCODING")
+                .map(|(_, value)| value.as_str()),
+            Some("utf-8")
+        );
+        assert_eq!(
+            env.iter()
+                .find(|(key, _)| key == "PYTHONUTF8")
+                .map(|(_, value)| value.as_str()),
+            Some("1")
+        );
+        assert_eq!(env.iter().filter(|(key, _)| key == "PYTHONIOENCODING").count(), 1);
+    }
+
+    #[test]
+    fn reads_cli_output_even_if_bytes_are_not_utf8() {
+        let gbk_hi = [0xC4, 0xE3, 0xBA, 0xC3]; // "你好" in GBK
+        let text = String::from_utf8_lossy(&gbk_hi);
+        assert!(!text.is_empty());
+        assert_eq!(read_pipe(Some(gbk_hi.as_slice())).len(), text.len());
     }
 }

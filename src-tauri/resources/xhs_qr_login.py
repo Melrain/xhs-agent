@@ -125,9 +125,28 @@ def finish_from_browser(
         )
         return 1
 
-    save_cookies(cookies)
+    persist_cookies(save_cookies, cookies)
     emit({"event": "confirmed"})
     return 0
+
+
+def persist_cookies(save_cookies_fn: Any, cookies: dict[str, str]) -> None:
+    """xiaohongshu-cli 的 save_cookies 会 chmod(0o600)，Windows 上偶发失败。"""
+    try:
+        save_cookies_fn(cookies)
+        return
+    except Exception as first:
+        try:
+            from xhs_cli.cookies import get_cookie_path
+
+            path = get_cookie_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({**cookies, "saved_at": time.time()}, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as second:
+            raise RuntimeError(f"写入 SESSION 失败：{second}") from first
 
 
 def main() -> int:

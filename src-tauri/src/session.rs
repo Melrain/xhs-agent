@@ -1,7 +1,7 @@
 use crate::store::{StoredAccount, Store};
 use crate::xhs::{
     comments_command, comments_from_envelope, comments_timeout_ms, envelope_code, envelope_error,
-    short_timeout_ms, XhsNotePullResult, XhsNoteView, XhsProbe, XhsRuntime,
+    home_dir, short_timeout_ms, XhsNotePullResult, XhsNoteView, XhsProbe, XhsRuntime,
 };
 use serde::Serialize;
 use std::fs;
@@ -388,8 +388,7 @@ fn collect_comments_unlocked(
 }
 
 pub fn default_cli_cookie_path() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
+    home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".xiaohongshu-cli")
         .join("cookies.json")
@@ -534,5 +533,14 @@ mod tests {
         let err = hub.switch_to("u1").unwrap_err();
         assert!(err.contains("session"));
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn cli_cookie_path_follows_python_home() {
+        let path = default_cli_cookie_path();
+        assert!(path.ends_with(Path::new(".xiaohongshu-cli").join("cookies.json")));
+        if let Some(home) = home_dir() {
+            assert_eq!(path, home.join(".xiaohongshu-cli").join("cookies.json"));
+        }
     }
 }

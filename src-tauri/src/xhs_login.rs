@@ -262,26 +262,46 @@ where
         return;
     };
     thread::spawn(move || {
-        let reader = BufReader::new(pipe);
-        for line in reader.lines() {
-            let Ok(line) = line else {
-                break;
-            };
-            if is_stderr {
-                let (lock, _) = &*login.pair;
-                if let Ok(mut inner) = lock.lock() {
-                    inner.stderr_tail = format!("{}{}\n", inner.stderr_tail, line);
-                    if inner.stderr_tail.len() > 2000 {
-                        let drain = inner.stderr_tail.len() - 2000;
-                        inner.stderr_tail.drain(..drain);
+        let mut reader = BufReader::new(pipe);
+        let mut buf = Vec::new();
+        loop {
+            buf.clear();
+            match reader.read_until(b'\n', &mut buf) {
+                Ok(0) => break,
+                Ok(_) => {
+                    let line = decode_process_line(&buf);
+                    if is_stderr {
+                        let (lock, _) = &*login.pair;
+                        if let Ok(mut inner) = lock.lock() {
+                            inner.stderr_tail = format!("{}{}\n", inner.stderr_tail, line);
+                            if inner.stderr_tail.len() > 2000 {
+                                let drain = inner.stderr_tail.len() - 2000;
+                                inner.stderr_tail.drain(..drain);
+                            }
+                        }
+                    }
+                    if let Some(event) = parse_login_output(&line) {
+                        login.apply_event(event);
                     }
                 }
-            }
-            if let Some(event) = parse_login_output(&line) {
-                login.apply_event(event);
+                Err(_) => break,
             }
         }
     });
+}
+
+/// Windows 上 Python 可能按 GBK 写出中文行。`BufRead::lines()` 遇到非法 UTF-8 会整段停掉，
+/// 后面的 `confirmed` 就丢了，界面会一直不能 adopt session。
+fn decode_process_line(raw: &[u8]) -> String {
+    String::from_utf8_lossy(raw).trim().to_string()
+}
+
+fn phase_after_helper_exit(phase: &str, code: Option<i32>, settled: bool) -> Option<&'static str> {
+    if code == Some(0) && settled && matches!(phase, "waiting" | "scanned" | "confirming") {
+        Some("confirmed")
+    } else {
+        None
+    }
 }
 
 fn spawn_exit_waiter(login: XhsLogin, mut child: std::process::Child, session_id: String) {
@@ -301,6 +321,12 @@ fn spawn_exit_waiter(login: XhsLogin, mut child: std::process::Child, session_id
             return;
         }
         if inner.view.phase == "error" {
+            inner.settled = true;
+            cond.notify_all();
+            return;
+        }
+        if phase_after_helper_exit(&inner.view.phase, code, inner.settled) == Some("confirmed") {
+            inner.view = apply_qr_event(inner.view.clone(), QrEvent::Confirmed);
             inner.settled = true;
             cond.notify_all();
             return;
@@ -847,5 +873,30 @@ mod tests {
             .phase,
             "confirming"
         );
+    }
+
+    #[test]
+    fn keeps_reading_after_a_non_utf8_line() {
+        let gbk_hint = [0x7B, 0x7D, 0xC4, 0xE3]; // "{}" + GBK byte
+        let mixed = [gbk_hint.as_slice(), b"\n{\"event\":\"confirmed\"}\n"].concat();
+        let lines: Vec<String> = mixed
+            .split(|byte| *byte == b'\n')
+            .filter(|line| !line.is_empty())
+            .map(decode_process_line)
+            .collect();
+        assert_eq!(lines.last().map(String::as_str), Some(r#"{"event":"confirmed"}"#));
+        assert_eq!(parse_login_output(lines.last().unwrap()), Some(QrEvent::Confirmed));
+    }
+
+    #[test]
+    fn treats_clean_exit_during_confirming_as_confirmed() {
+        assert_eq!(
+            phase_after_helper_exit("confirming", Some(0), true),
+            Some("confirmed")
+        );
+        assert_eq!(phase_after_helper_exit("scanned", Some(0), true), Some("confirmed"));
+        assert_eq!(phase_after_helper_exit("waiting", Some(0), true), Some("confirmed"));
+        assert_eq!(phase_after_helper_exit("waiting", Some(0), false), None);
+        assert_eq!(phase_after_helper_exit("confirming", Some(1), true), None);
     }
 }
