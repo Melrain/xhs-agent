@@ -712,15 +712,29 @@ pub(crate) fn run_cli_as_progress(
 
 fn read_pipe_lines<T: Read>(pipe: Option<T>, tx: std::sync::mpsc::Sender<String>) -> String {
     let mut all = String::new();
-    let Some(reader) = pipe else {
+    let Some(mut reader) = pipe else {
         return all;
     };
-    let mut reader = BufReader::new(reader);
-    let mut line = String::new();
-    while reader.read_line(&mut line).unwrap_or(0) > 0 {
-        all.push_str(&line);
-        let _ = tx.send(line.trim().to_string());
-        line.clear();
+    let mut buf = [0_u8; 4096];
+    let mut carry = String::new();
+    loop {
+        let count = match reader.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(count) => count,
+        };
+        let chunk = String::from_utf8_lossy(&buf[..count]);
+        all.push_str(&chunk);
+        carry.push_str(&chunk);
+        while let Some(index) = carry.find(['\n', '\r']) {
+            let line = carry[..index].to_string();
+            carry = carry[index + 1..].to_string();
+            if !line.trim().is_empty() {
+                let _ = tx.send(line.trim().to_string());
+            }
+        }
+    }
+    if !carry.trim().is_empty() {
+        let _ = tx.send(carry.trim().to_string());
     }
     all
 }

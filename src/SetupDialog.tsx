@@ -17,7 +17,7 @@ export function SetupDialog({
         <p className="eyebrow">本机环境</p>
         <h1 id="setup-title">正在准备运行环境</h1>
         <p className="setup-lead">
-          {report?.message || '正在检查 Python、CLI、Camoufox 和 Playwright…'}
+          {report?.message || '正在检查 Python、CLI、Camoufox 和 Playwright。浏览器安装包会走加速源。'}
         </p>
         <ol className="setup-steps">
           {(report?.steps ?? []).map((step) => (

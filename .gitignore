@@ -14,6 +14,7 @@ dist-ssr
 *.key
 *.key.pub
 src-tauri/target
+src-tauri/resources/__pycache__/
 
 # Editor directories and files
 .vscode/*

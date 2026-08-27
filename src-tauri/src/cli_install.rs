@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 
 const INSTALL_TIMEOUT_MS: u64 = 180_000;
 const BOOTSTRAP_TIMEOUT_MS: u64 = 120_000;
-const CAMOUFOX_FETCH_TIMEOUT_MS: u64 = 600_000;
+const CAMOUFOX_FETCH_TIMEOUT_MS: u64 = 900_000;
+const CAMOUFOX_FETCH_PY: &str = include_str!("../resources/camoufox_fetch.py");
 
 const PY_CHECK_BROWSER: &str = r#"
 from camoufox.multiversion import get_active_path
@@ -141,12 +142,23 @@ pub fn ensure_runtime(mut on_progress: impl FnMut(&SetupReport)) -> SetupReport 
             &mut report,
             "camoufox-browser",
             "running",
-            "正在下载 Camoufox 浏览器，第一次会比较久…",
+            "正在通过加速源下载 Camoufox 浏览器…",
         );
         on_progress(&report);
+        let script = match write_camoufox_fetch_script() {
+            Ok(path) => path,
+            Err(error) => {
+                set_step(&mut report, "camoufox-browser", "error", &error);
+                report.ready = false;
+                report.message = error;
+                on_progress(&report);
+                return report;
+            }
+        };
+        let script_arg = script.to_string_lossy().into_owned();
         let fetch = run_cli_as_progress(
             &python,
-            &["-m", "camoufox", "fetch"],
+            &[&script_arg],
             CAMOUFOX_FETCH_TIMEOUT_MS,
             "camoufox",
             |line| {
@@ -325,6 +337,12 @@ fn current_error(report: &SetupReport) -> String {
         .find(|step| step.status == "error")
         .map(|step| step.detail.clone())
         .unwrap_or_else(|| report.message.clone())
+}
+
+fn write_camoufox_fetch_script() -> Result<PathBuf, String> {
+    let path = std::env::temp_dir().join("xhs-agent-camoufox-fetch.py");
+    std::fs::write(&path, CAMOUFOX_FETCH_PY).map_err(|error| format!("写下载脚本失败：{error}"))?;
+    Ok(path)
 }
 
 fn camoufox_browser_ready(python: &Path) -> bool {
@@ -547,5 +565,12 @@ mod tests {
         let help = manual_install_help();
         assert!(help.contains("xiaohongshu-cli"));
         assert!(help.contains("camoufox fetch"));
+    }
+
+    #[test]
+    fn fetch_script_uses_github_mirrors() {
+        assert!(CAMOUFOX_FETCH_PY.contains("ghfast.top"));
+        assert!(CAMOUFOX_FETCH_PY.contains("下载中"));
+        assert!(!CAMOUFOX_FETCH_PY.contains("camoufox path"));
     }
 }
