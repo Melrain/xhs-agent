@@ -18,7 +18,7 @@ jobs:
             args: --target aarch64-apple-darwin
           - platform: ubuntu-22.04
             args: ''
-          - platform: windows-latest
+          - platform: windows-2022
             args: ''
     runs-on: ${{ matrix.platform }}
     steps:
@@ -60,5 +60,6 @@ jobs:
             已安装的用户打开应用后可直接更新，不必重新下载安装包。
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
