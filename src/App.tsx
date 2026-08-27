@@ -66,7 +66,7 @@ export default function App() {
   const message =
     invokeError ||
     loginMessage(login) ||
-    (booting ? '正在检查本机 xhs，没有的话会自动安装…' : '') ||
+    (booting ? '正在检查本机环境，缺少 CLI 或 Camoufox 时会自动安装…' : '') ||
     probe?.message ||
     '同步笔记并拉评论后，这里列出谁在你笔记下留了言。';
 
@@ -480,7 +480,7 @@ export default function App() {
         <div className="actions">
           {missingCli ? (
             <button type="button" disabled={busy || booting} onClick={() => void bootApp()}>
-              {booting ? '正在安装…' : '再次安装 CLI'}
+              {booting ? '正在安装…' : '再次安装环境'}
             </button>
           ) : loggingIn ? (
             <button type="button" className="danger" disabled={busy} onClick={() => void cancelLogin()}>

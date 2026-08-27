@@ -1,14 +1,36 @@
-use crate::xhs::{resolve_named_bin, resolve_xhs_bin, run_cli_as};
-use std::path::PathBuf;
+use crate::xhs::{
+    resolve_companion_python, resolve_named_bin, resolve_xhs_bin, run_cli_as,
+};
+use std::path::{Path, PathBuf};
 
 const INSTALL_TIMEOUT_MS: u64 = 180_000;
 const BOOTSTRAP_TIMEOUT_MS: u64 = 120_000;
+const CAMOUFOX_FETCH_TIMEOUT_MS: u64 = 600_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnsureCli {
     pub found: bool,
     pub installed_now: bool,
     pub detail: String,
+}
+
+pub fn ensure_local_runtime() -> EnsureCli {
+    let mut cli = ensure_xhs_cli();
+    if !cli.found {
+        return cli;
+    }
+    match ensure_camoufox() {
+        Ok(None) => cli,
+        Ok(Some(how)) => {
+            cli.installed_now = true;
+            cli.detail = join_details(&cli.detail, &how);
+            cli
+        }
+        Err(error) => {
+            cli.detail = join_details(&cli.detail, &error);
+            cli
+        }
+    }
 }
 
 pub fn ensure_xhs_cli() -> EnsureCli {
@@ -35,11 +57,97 @@ pub fn ensure_xhs_cli() -> EnsureCli {
 }
 
 pub fn manual_install_help() -> String {
-    "请自行安装 xiaohongshu-cli 后点「再次安装 CLI」，或重启本应用：\n\
+    "请自行安装 xiaohongshu-cli 后点「再次安装环境」，或重启本应用：\n\
      推荐：uv tool install xiaohongshu-cli\n\
+     然后：python -m camoufox fetch\n\
      或：pipx install xiaohongshu-cli\n\
      也可把 xhs 路径写到环境变量 XHS_BIN。"
         .into()
+}
+
+fn join_details(left: &str, right: &str) -> String {
+    match (left.trim().is_empty(), right.trim().is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => right.to_string(),
+        (false, true) => left.to_string(),
+        (false, false) => format!("{left}\n{right}"),
+    }
+}
+
+fn camoufox_browser_ready(python: &Path) -> bool {
+    let Ok((code, stdout, _)) =
+        run_cli_as(python, &["-m", "camoufox", "path"], 20_000, "camoufox")
+    else {
+        return false;
+    };
+    code == 0 && !stdout.trim().is_empty()
+}
+
+fn ensure_camoufox() -> Result<Option<String>, String> {
+    let python = resolve_companion_python()
+        .map_err(|error| format!("CLI 已就绪，但找不到配套 Python，无法安装 Camoufox：{error}"))?;
+
+    if camoufox_browser_ready(&python) {
+        return Ok(None);
+    }
+
+    if !camoufox_module_present(&python) {
+        install_camoufox_package(&python)?;
+    }
+
+    if camoufox_browser_ready(&python) {
+        return Ok(Some("已补齐 camoufox 包。".into()));
+    }
+
+    let (code, stdout, stderr) = run_cli_as(
+        &python,
+        &["-m", "camoufox", "fetch"],
+        CAMOUFOX_FETCH_TIMEOUT_MS,
+        "camoufox",
+    )
+    .map_err(|error| format!("安装 Camoufox 浏览器失败：{error}"))?;
+    if code != 0 {
+        let tail = [stderr.trim(), stdout.trim()]
+            .into_iter()
+            .find(|text| !text.is_empty())
+            .unwrap_or("没有输出");
+        let cut: String = tail.chars().take(240).collect();
+        return Err(format!("Camoufox 浏览器安装失败（退出码 {code}）：{cut}"));
+    }
+    if !camoufox_browser_ready(&python) {
+        return Err("已执行 camoufox fetch，但仍找不到浏览器。".into());
+    }
+    Ok(Some("已安装 Camoufox 浏览器，扫码登录需要它。".into()))
+}
+
+fn camoufox_module_present(python: &Path) -> bool {
+    run_cli_as(
+        python,
+        &["-c", "import camoufox"],
+        15_000,
+        "python",
+    )
+    .ok()
+    .is_some_and(|(code, _, _)| code == 0)
+}
+
+fn install_camoufox_package(python: &Path) -> Result<(), String> {
+    let (code, stdout, stderr) = run_cli_as(
+        python,
+        &["-m", "pip", "install", "--user", "camoufox"],
+        INSTALL_TIMEOUT_MS,
+        "pip",
+    )
+    .map_err(|error| format!("安装 camoufox 包失败：{error}"))?;
+    if code == 0 {
+        return Ok(());
+    }
+    let tail = [stderr.trim(), stdout.trim()]
+        .into_iter()
+        .find(|text| !text.is_empty())
+        .unwrap_or("没有输出");
+    let cut: String = tail.chars().take(240).collect();
+    Err(format!("安装 camoufox 包失败（退出码 {code}）：{cut}"))
 }
 
 fn install_xiaohongshu_cli() -> Result<String, String> {
@@ -182,6 +290,7 @@ mod tests {
     fn help_tells_user_how_to_install() {
         let help = manual_install_help();
         assert!(help.contains("uv tool install xiaohongshu-cli"));
+        assert!(help.contains("camoufox fetch"));
         assert!(help.contains("XHS_BIN"));
     }
 
