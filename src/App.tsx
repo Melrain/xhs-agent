@@ -31,6 +31,9 @@ import {
 } from './xhs';
 import { checkAppUpdate, installAppUpdate, type UpdateStatus } from './update';
 import type { Update } from '@tauri-apps/plugin-updater';
+import { listen } from '@tauri-apps/api/event';
+import { SetupDialog } from './SetupDialog';
+import { setupEnsure, setupProbe, type SetupReport } from './setup';
 import './App.css';
 
 export default function App() {
@@ -51,6 +54,10 @@ export default function App() {
   const [exportHint, setExportHint] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [booting, setBooting] = useState(true);
+  const [appReady, setAppReady] = useState(false);
+  const [setup, setSetup] = useState<SetupReport | null>(null);
+  const [setupBusy, setSetupBusy] = useState(true);
+  const setupRef = useRef(false);
   const workspaceGen = useRef(0);
   const finishingLogin = useRef(false);
   const bootingRef = useRef(false);
@@ -66,7 +73,7 @@ export default function App() {
   const message =
     invokeError ||
     loginMessage(login) ||
-    (booting ? '正在检查本机环境，缺少 CLI 或 Camoufox 时会自动安装…' : '') ||
+    (booting ? '正在打开工作区…' : '') ||
     probe?.message ||
     '同步笔记并拉评论后，这里列出谁在你笔记下留了言。';
 
@@ -345,6 +352,45 @@ export default function App() {
     }
   }
 
+  async function prepareEnv() {
+    if (setupRef.current) {
+      return;
+    }
+    setupRef.current = true;
+    setSetupBusy(true);
+    setInvokeError(null);
+    try {
+      const first = await setupProbe();
+      setSetup(first);
+      if (!first.ready) {
+        const unlisten = await listen<SetupReport>('setup-progress', (event) => {
+          setSetup(event.payload);
+        });
+        try {
+          const result = await setupEnsure();
+          setSetup(result);
+          if (!result.ready) {
+            return;
+          }
+        } finally {
+          unlisten();
+        }
+      }
+      await bootApp();
+      setAppReady(true);
+    } catch (error) {
+      setInvokeError(asMessage(error));
+      setSetup((current) => ({
+        ready: false,
+        message: asMessage(error),
+        steps: current?.steps ?? [],
+      }));
+    } finally {
+      setupRef.current = false;
+      setSetupBusy(false);
+    }
+  }
+
   async function bootApp() {
     if (bootingRef.current) {
       return;
@@ -380,7 +426,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    void bootApp();
+    void prepareEnv();
   }, []);
 
   useEffect(() => {
@@ -418,6 +464,14 @@ export default function App() {
     }, 800);
     return () => window.clearInterval(timer);
   }, [login?.phase, login?.sessionId]);
+
+  if (!appReady) {
+    return (
+      <div className="app">
+        <SetupDialog report={setup} busy={setupBusy} onRetry={() => void prepareEnv()} />
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -479,8 +533,15 @@ export default function App() {
         <p className="message">{message}</p>
         <div className="actions">
           {missingCli ? (
-            <button type="button" disabled={busy || booting} onClick={() => void bootApp()}>
-              {booting ? '正在安装…' : '再次安装环境'}
+            <button
+              type="button"
+              disabled={busy || booting}
+              onClick={() => {
+                setAppReady(false);
+                void prepareEnv();
+              }}
+            >
+              再次检查环境
             </button>
           ) : loggingIn ? (
             <button type="button" className="danger" disabled={busy} onClick={() => void cancelLogin()}>

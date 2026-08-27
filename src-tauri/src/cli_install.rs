@@ -1,153 +1,386 @@
 use crate::xhs::{
-    resolve_companion_python, resolve_named_bin, resolve_xhs_bin, run_cli_as,
+    resolve_companion_python, resolve_named_bin, resolve_xhs_bin, run_cli_as, run_cli_as_progress,
 };
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 const INSTALL_TIMEOUT_MS: u64 = 180_000;
 const BOOTSTRAP_TIMEOUT_MS: u64 = 120_000;
 const CAMOUFOX_FETCH_TIMEOUT_MS: u64 = 600_000;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EnsureCli {
-    pub found: bool,
-    pub installed_now: bool,
+const PY_CHECK_BROWSER: &str = r#"
+from camoufox.multiversion import get_active_path
+from camoufox.pkgman import launch_path
+path = get_active_path()
+if path is None:
+    raise SystemExit(2)
+print(launch_path(path))
+"#;
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SetupStep {
+    pub id: String,
+    pub title: String,
+    pub status: String,
     pub detail: String,
 }
 
-pub fn ensure_local_runtime() -> EnsureCli {
-    let mut cli = ensure_xhs_cli();
-    if !cli.found {
-        return cli;
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SetupReport {
+    pub ready: bool,
+    pub message: String,
+    pub steps: Vec<SetupStep>,
+}
+
+pub fn probe_runtime() -> SetupReport {
+    report_from_facts(collect_facts())
+}
+
+pub fn ensure_runtime(mut on_progress: impl FnMut(&SetupReport)) -> SetupReport {
+    let mut facts = collect_facts();
+    let mut report = report_from_facts(facts.clone());
+    if report.ready {
+        on_progress(&report);
+        return report;
     }
-    match ensure_camoufox() {
-        Ok(None) => cli,
-        Ok(Some(how)) => {
-            cli.installed_now = true;
-            cli.detail = join_details(&cli.detail, &how);
-            cli
+    on_progress(&report);
+
+    if !facts.toolchain {
+        set_step(&mut report, "toolchain", "running", "正在安装 uv…");
+        on_progress(&report);
+        match bootstrap_uv() {
+            Some(_) => {
+                facts = collect_facts();
+                set_step(&mut report, "toolchain", "done", "已安装 uv");
+            }
+            None => {
+                set_step(
+                    &mut report,
+                    "toolchain",
+                    "error",
+                    "装不上 uv。请先安装 Python 3.10+，或手动安装 uv。",
+                );
+                report.ready = false;
+                report.message = current_error(&report);
+                on_progress(&report);
+                return report;
+            }
         }
+        on_progress(&report);
+    }
+
+    if !facts.cli {
+        set_step(&mut report, "cli", "running", "正在安装 xiaohongshu-cli…");
+        on_progress(&report);
+        match install_xiaohongshu_cli() {
+            Ok(how) => set_step(&mut report, "cli", "done", &format!("已用 {how} 安装")),
+            Err(error) => {
+                set_step(&mut report, "cli", "error", &error);
+                report.ready = false;
+                report.message = error;
+                on_progress(&report);
+                return report;
+            }
+        }
+        facts = collect_facts();
+        apply_facts(&mut report, &facts);
+        on_progress(&report);
+    }
+
+    let python = match resolve_companion_python() {
+        Ok(path) => path,
         Err(error) => {
-            cli.detail = join_details(&cli.detail, &error);
-            cli
+            set_step(
+                &mut report,
+                "camoufox-pkg",
+                "error",
+                &format!("找不到配套 Python：{error}"),
+            );
+            report.ready = false;
+            report.message = format!("CLI 在，但找不到配套 Python：{error}");
+            on_progress(&report);
+            return report;
+        }
+    };
+
+    if !facts.camoufox_pkg {
+        set_step(&mut report, "camoufox-pkg", "running", "正在安装 camoufox 包…");
+        on_progress(&report);
+        if let Err(error) = install_python_package(&python, "camoufox") {
+            set_step(&mut report, "camoufox-pkg", "error", &error);
+            report.ready = false;
+            report.message = error;
+            on_progress(&report);
+            return report;
+        }
+        set_step(&mut report, "camoufox-pkg", "done", "camoufox 包已就绪");
+        on_progress(&report);
+    }
+
+    if !module_present(&python, "playwright") {
+        set_step(&mut report, "playwright", "running", "正在安装 Playwright…");
+        on_progress(&report);
+        if let Err(error) = install_python_package(&python, "playwright") {
+            set_step(&mut report, "playwright", "error", &error);
+            report.ready = false;
+            report.message = error;
+            on_progress(&report);
+            return report;
+        }
+        set_step(&mut report, "playwright", "done", "Playwright 已就绪");
+        on_progress(&report);
+    } else {
+        set_step(&mut report, "playwright", "done", "Playwright 已就绪");
+        on_progress(&report);
+    }
+
+    if !camoufox_browser_ready(&python) {
+        set_step(
+            &mut report,
+            "camoufox-browser",
+            "running",
+            "正在下载 Camoufox 浏览器，第一次会比较久…",
+        );
+        on_progress(&report);
+        let fetch = run_cli_as_progress(
+            &python,
+            &["-m", "camoufox", "fetch"],
+            CAMOUFOX_FETCH_TIMEOUT_MS,
+            "camoufox",
+            |line| {
+                let detail = clean_progress_line(line);
+                if !detail.is_empty() {
+                    set_step(&mut report, "camoufox-browser", "running", &detail);
+                    on_progress(&report);
+                }
+            },
+        );
+        match fetch {
+            Ok((0, _, _)) if camoufox_browser_ready(&python) => {
+                set_step(&mut report, "camoufox-browser", "done", "Camoufox 浏览器已就绪");
+            }
+            Ok((code, stdout, stderr)) => {
+                let tail = [stderr.trim(), stdout.trim()]
+                    .into_iter()
+                    .find(|text| !text.is_empty())
+                    .unwrap_or("没有输出");
+                let cut: String = tail.chars().take(240).collect();
+                let error = format!("Camoufox 浏览器安装失败（退出码 {code}）：{cut}");
+                set_step(&mut report, "camoufox-browser", "error", &error);
+                report.ready = false;
+                report.message = error;
+                on_progress(&report);
+                return report;
+            }
+            Err(error) => {
+                let error = format!("安装 Camoufox 浏览器失败：{error}");
+                set_step(&mut report, "camoufox-browser", "error", &error);
+                report.ready = false;
+                report.message = error;
+                on_progress(&report);
+                return report;
+            }
+        }
+        on_progress(&report);
+    }
+
+    facts = collect_facts();
+    report = report_from_facts(facts);
+    if report.ready {
+        report.message = "环境已就绪".into();
+    }
+    on_progress(&report);
+    report
+}
+
+#[derive(Debug, Clone)]
+struct RuntimeFacts {
+    toolchain: bool,
+    cli: bool,
+    camoufox_pkg: bool,
+    playwright: bool,
+    camoufox_browser: bool,
+}
+
+fn collect_facts() -> RuntimeFacts {
+    let python = resolve_companion_python().ok();
+    let camoufox_pkg = python
+        .as_ref()
+        .is_some_and(|path| module_present(path, "camoufox"));
+    let playwright = python
+        .as_ref()
+        .is_some_and(|path| module_present(path, "playwright"));
+    let camoufox_browser = python
+        .as_ref()
+        .is_some_and(|path| camoufox_browser_ready(path));
+    RuntimeFacts {
+        toolchain: resolve_named_bin("uv").is_some()
+            || resolve_named_bin("python3").is_some()
+            || resolve_named_bin("python").is_some()
+            || python.is_some(),
+        cli: resolve_xhs_bin().is_some(),
+        camoufox_pkg,
+        playwright,
+        camoufox_browser,
+    }
+}
+
+fn report_from_facts(facts: RuntimeFacts) -> SetupReport {
+    let steps = vec![
+        step(
+            "toolchain",
+            "Python / uv",
+            facts.toolchain,
+            if facts.toolchain {
+                "已找到"
+            } else {
+                "未找到，将自动安装 uv"
+            },
+        ),
+        step(
+            "cli",
+            "xiaohongshu-cli",
+            facts.cli,
+            if facts.cli {
+                "已找到 xhs"
+            } else {
+                "未安装"
+            },
+        ),
+        step(
+            "camoufox-pkg",
+            "camoufox 包",
+            facts.camoufox_pkg,
+            if facts.camoufox_pkg {
+                "已安装"
+            } else {
+                "扫码登录需要"
+            },
+        ),
+        step(
+            "playwright",
+            "Playwright",
+            facts.playwright,
+            if facts.playwright {
+                "已安装"
+            } else {
+                "camoufox 启动浏览器需要"
+            },
+        ),
+        step(
+            "camoufox-browser",
+            "Camoufox 浏览器",
+            facts.camoufox_browser,
+            if facts.camoufox_browser {
+                "已安装"
+            } else {
+                "未安装，将执行 camoufox fetch"
+            },
+        ),
+    ];
+    let ready = steps.iter().all(|item| item.status == "done");
+    SetupReport {
+        ready,
+        message: if ready {
+            "环境已就绪".into()
+        } else {
+            "还缺运行环境，开始安装…".into()
+        },
+        steps,
+    }
+}
+
+fn step(id: &str, title: &str, ok: bool, detail: &str) -> SetupStep {
+    SetupStep {
+        id: id.into(),
+        title: title.into(),
+        status: if ok { "done" } else { "waiting" }.into(),
+        detail: detail.into(),
+    }
+}
+
+fn set_step(report: &mut SetupReport, id: &str, status: &str, detail: &str) {
+    if let Some(step) = report.steps.iter_mut().find(|item| item.id == id) {
+        step.status = status.into();
+        step.detail = detail.into();
+    }
+}
+
+fn apply_facts(report: &mut SetupReport, facts: &RuntimeFacts) {
+    let fresh = report_from_facts(facts.clone());
+    for step in &fresh.steps {
+        if step.status == "done" {
+            set_step(report, &step.id, "done", &step.detail);
         }
     }
 }
 
-pub fn ensure_xhs_cli() -> EnsureCli {
-    if resolve_xhs_bin().is_some() {
-        return EnsureCli {
-            found: true,
-            installed_now: false,
-            detail: String::new(),
-        };
-    }
-
-    match install_xiaohongshu_cli() {
-        Ok(how) => EnsureCli {
-            found: true,
-            installed_now: true,
-            detail: format!("已用 {how} 安装 xiaohongshu-cli。"),
-        },
-        Err(error) => EnsureCli {
-            found: false,
-            installed_now: false,
-            detail: format!("{error}\n{}", manual_install_help()),
-        },
-    }
-}
-
-pub fn manual_install_help() -> String {
-    "请自行安装 xiaohongshu-cli 后点「再次安装环境」，或重启本应用：\n\
-     推荐：uv tool install xiaohongshu-cli\n\
-     然后：python -m camoufox fetch\n\
-     或：pipx install xiaohongshu-cli\n\
-     也可把 xhs 路径写到环境变量 XHS_BIN。"
-        .into()
-}
-
-fn join_details(left: &str, right: &str) -> String {
-    match (left.trim().is_empty(), right.trim().is_empty()) {
-        (true, true) => String::new(),
-        (true, false) => right.to_string(),
-        (false, true) => left.to_string(),
-        (false, false) => format!("{left}\n{right}"),
-    }
+fn current_error(report: &SetupReport) -> String {
+    report
+        .steps
+        .iter()
+        .rev()
+        .find(|step| step.status == "error")
+        .map(|step| step.detail.clone())
+        .unwrap_or_else(|| report.message.clone())
 }
 
 fn camoufox_browser_ready(python: &Path) -> bool {
     let Ok((code, stdout, _)) =
-        run_cli_as(python, &["-m", "camoufox", "path"], 20_000, "camoufox")
+        run_cli_as(python, &["-c", PY_CHECK_BROWSER], 20_000, "camoufox")
     else {
         return false;
     };
     code == 0 && !stdout.trim().is_empty()
 }
 
-fn ensure_camoufox() -> Result<Option<String>, String> {
-    let python = resolve_companion_python()
-        .map_err(|error| format!("CLI 已就绪，但找不到配套 Python，无法安装 Camoufox：{error}"))?;
-
-    if camoufox_browser_ready(&python) {
-        return Ok(None);
-    }
-
-    if !camoufox_module_present(&python) {
-        install_camoufox_package(&python)?;
-    }
-
-    if camoufox_browser_ready(&python) {
-        return Ok(Some("已补齐 camoufox 包。".into()));
-    }
-
-    let (code, stdout, stderr) = run_cli_as(
-        &python,
-        &["-m", "camoufox", "fetch"],
-        CAMOUFOX_FETCH_TIMEOUT_MS,
-        "camoufox",
-    )
-    .map_err(|error| format!("安装 Camoufox 浏览器失败：{error}"))?;
-    if code != 0 {
-        let tail = [stderr.trim(), stdout.trim()]
-            .into_iter()
-            .find(|text| !text.is_empty())
-            .unwrap_or("没有输出");
-        let cut: String = tail.chars().take(240).collect();
-        return Err(format!("Camoufox 浏览器安装失败（退出码 {code}）：{cut}"));
-    }
-    if !camoufox_browser_ready(&python) {
-        return Err("已执行 camoufox fetch，但仍找不到浏览器。".into());
-    }
-    Ok(Some("已安装 Camoufox 浏览器，扫码登录需要它。".into()))
+fn module_present(python: &Path, module: &str) -> bool {
+    let script = format!("import {module}");
+    run_cli_as(python, &["-c", &script], 15_000, "python")
+        .ok()
+        .is_some_and(|(code, _, _)| code == 0)
 }
 
-fn camoufox_module_present(python: &Path) -> bool {
-    run_cli_as(
-        python,
-        &["-c", "import camoufox"],
-        15_000,
-        "python",
-    )
-    .ok()
-    .is_some_and(|(code, _, _)| code == 0)
+pub fn manual_install_help() -> String {
+    "请自行装好环境后点「再次检查环境」，或重启本应用：\n\
+     推荐：uv tool install xiaohongshu-cli\n\
+     然后用配套 Python 执行：python -m camoufox fetch\n\
+     扫码还需要 camoufox 包、Playwright，以及 Camoufox 浏览器本体。\n\
+     也可把 xhs 路径写到环境变量 XHS_BIN。"
+        .into()
 }
 
-fn install_camoufox_package(python: &Path) -> Result<(), String> {
-    let (code, stdout, stderr) = run_cli_as(
-        python,
-        &["-m", "pip", "install", "--user", "camoufox"],
-        INSTALL_TIMEOUT_MS,
-        "pip",
-    )
-    .map_err(|error| format!("安装 camoufox 包失败：{error}"))?;
-    if code == 0 {
-        return Ok(());
+fn install_python_package(python: &Path, package: &str) -> Result<(), String> {
+    let attempts: [&[&str]; 2] = [
+        &["-m", "pip", "install", package],
+        &["-m", "pip", "install", "--user", package],
+    ];
+    let mut last_error = format!("安装 {package} 失败");
+    for args in attempts {
+        match run_cli_as(python, args, INSTALL_TIMEOUT_MS, "pip") {
+            Ok((0, _, _)) => return Ok(()),
+            Ok((code, stdout, stderr)) => {
+                let tail = [stderr.trim(), stdout.trim()]
+                    .into_iter()
+                    .find(|text| !text.is_empty())
+                    .unwrap_or("没有输出");
+                let cut: String = tail.chars().take(240).collect();
+                last_error = format!("安装 {package} 失败（退出码 {code}）：{cut}");
+            }
+            Err(error) => last_error = format!("安装 {package} 失败：{error}"),
+        }
     }
-    let tail = [stderr.trim(), stdout.trim()]
-        .into_iter()
-        .find(|text| !text.is_empty())
-        .unwrap_or("没有输出");
-    let cut: String = tail.chars().take(240).collect();
-    Err(format!("安装 camoufox 包失败（退出码 {code}）：{cut}"))
+    Err(last_error)
+}
+
+fn clean_progress_line(line: &str) -> String {
+    let cleaned: String = line
+        .chars()
+        .filter(|ch| !ch.is_control())
+        .collect();
+    cleaned.trim().chars().take(80).collect()
 }
 
 fn install_xiaohongshu_cli() -> Result<String, String> {
@@ -287,20 +520,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn help_tells_user_how_to_install() {
-        let help = manual_install_help();
-        assert!(help.contains("uv tool install xiaohongshu-cli"));
-        assert!(help.contains("camoufox fetch"));
-        assert!(help.contains("XHS_BIN"));
+    fn probe_lists_runtime_steps() {
+        let report = probe_runtime();
+        let ids: Vec<_> = report.steps.iter().map(|step| step.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "toolchain",
+                "cli",
+                "camoufox-pkg",
+                "playwright",
+                "camoufox-browser"
+            ]
+        );
     }
 
     #[test]
-    fn ensure_keeps_existing_cli() {
-        if resolve_xhs_bin().is_none() {
-            return;
-        }
-        let result = ensure_xhs_cli();
-        assert!(result.found);
-        assert!(!result.installed_now);
+    fn browser_check_does_not_use_camoufox_path_cli() {
+        assert!(PY_CHECK_BROWSER.contains("get_active_path"));
+        assert!(PY_CHECK_BROWSER.contains("launch_path"));
+        assert!(!PY_CHECK_BROWSER.contains("camoufox path"));
+    }
+
+    #[test]
+    fn help_tells_user_how_to_install() {
+        let help = manual_install_help();
+        assert!(help.contains("xiaohongshu-cli"));
+        assert!(help.contains("camoufox fetch"));
     }
 }

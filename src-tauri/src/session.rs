@@ -45,7 +45,6 @@ impl SessionHub {
 
     pub fn boot(&self) -> Result<SessionSnapshot, String> {
         self.xhs.with_lock(|| {
-            let cli = crate::cli_install::ensure_local_runtime();
             self.migrate_cli_slot()?;
             if let Some(active) = self.store.active_account_id()? {
                 if self.vault_exists(&active) {
@@ -55,16 +54,7 @@ impl SessionHub {
                 self.install(&id)?;
                 self.store.set_active_account(Some(&id))?;
             }
-            let mut snapshot = self.refresh_locked()?;
-            if !cli.detail.is_empty()
-                && (snapshot.probe.kind == "missing_cli"
-                    || snapshot.probe.kind == "logged_out"
-                    || snapshot.probe.kind == "error"
-                    || cli.installed_now)
-            {
-                snapshot.probe.message = cli.detail;
-            }
-            Ok(snapshot)
+            self.refresh_locked()
         })
     }
 

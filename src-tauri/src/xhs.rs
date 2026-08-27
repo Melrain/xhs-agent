@@ -648,6 +648,83 @@ pub(crate) fn run_cli_as(
     }
 }
 
+pub(crate) fn run_cli_as_progress(
+    bin: &Path,
+    args: &[&str],
+    timeout_ms: u64,
+    name: &str,
+    mut on_line: impl FnMut(&str),
+) -> Result<(i32, String, String), String> {
+    let mut command = Command::new(bin);
+    configure_child(&mut command);
+    let mut child = command
+        .args(args)
+        .envs(sanitize_cli_env())
+        .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONIOENCODING", "utf-8")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                format!("找不到本机 {name} 命令")
+            } else {
+                format!("无法启动 {name}：{error}")
+            }
+        })?;
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
+    let stdout_tx = tx.clone();
+    let stdout_handle = thread::spawn(move || read_pipe_lines(stdout, stdout_tx));
+    let stderr_handle = thread::spawn(move || read_pipe_lines(stderr, tx));
+
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    loop {
+        while let Ok(line) = rx.try_recv() {
+            if !line.trim().is_empty() {
+                on_line(&line);
+            }
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                while let Ok(line) = rx.try_recv() {
+                    if !line.trim().is_empty() {
+                        on_line(&line);
+                    }
+                }
+                let stdout = stdout_handle.join().unwrap_or_default();
+                let stderr = stderr_handle.join().unwrap_or_default();
+                return Ok((status.code().unwrap_or(-1), stdout, stderr));
+            }
+            Ok(None) if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("{name} 执行超时"));
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(80)),
+            Err(error) => return Err(format!("等待 {name} 退出失败：{error}")),
+        }
+    }
+}
+
+fn read_pipe_lines<T: Read>(pipe: Option<T>, tx: std::sync::mpsc::Sender<String>) -> String {
+    let mut all = String::new();
+    let Some(reader) = pipe else {
+        return all;
+    };
+    let mut reader = BufReader::new(reader);
+    let mut line = String::new();
+    while reader.read_line(&mut line).unwrap_or(0) > 0 {
+        all.push_str(&line);
+        let _ = tx.send(line.trim().to_string());
+        line.clear();
+    }
+    all
+}
+
 fn read_pipe<T: Read>(pipe: Option<T>) -> String {
     let mut buf = String::new();
     if let Some(mut reader) = pipe {

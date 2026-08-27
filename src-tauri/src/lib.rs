@@ -5,12 +5,31 @@ mod store;
 mod xhs;
 mod xhs_login;
 
+use cli_install::SetupReport;
 use session::{SessionHub, SessionSnapshot};
 use store::{StoredComment, StoredNote};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use xhs::{XhsNotePullResult, XhsProbe, XhsRuntime};
 use xhs_login::{XhsLogin, XhsQrSessionView};
+
+#[tauri::command]
+async fn setup_probe() -> Result<SetupReport, String> {
+    tauri::async_runtime::spawn_blocking(cli_install::probe_runtime)
+        .await
+        .map_err(|error| format!("任务中断：{error}"))
+}
+
+#[tauri::command]
+async fn setup_ensure(app: AppHandle) -> Result<SetupReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        cli_install::ensure_runtime(|progress| {
+            let _ = app.emit("setup-progress", progress);
+        })
+    })
+    .await
+    .map_err(|error| format!("任务中断：{error}"))
+}
 
 #[tauri::command]
 async fn session_boot(hub: State<'_, SessionHub>) -> Result<SessionSnapshot, String> {
@@ -226,6 +245,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            setup_probe,
+            setup_ensure,
             session_boot,
             session_snapshot,
             session_switch,

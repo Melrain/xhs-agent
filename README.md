@@ -1,6 +1,6 @@
 # 评论用户（xhs-agent）
 
-本机桌面端，用来登录小红书、同步自己的笔记，并拉取笔记下的评论用户。启动时会自动安装 `xiaohongshu-cli` 和扫码用的 Camoufox 浏览器（没有的话）。
+本机桌面端，用来登录小红书、同步自己的笔记，并拉取笔记下的评论用户。启动时若缺少环境，会先弹出安装进度：Python/uv、`xiaohongshu-cli`、camoufox 包、Playwright、Camoufox 浏览器。
 
 支持 **Windows x64**、**Apple Silicon**、**Linux x64**。装过一次之后，后续版本会在应用里自动更新。
 
@@ -25,7 +25,7 @@ xattr -cr "/Applications/小红书执行器.app"
 ## 发布新版本
 
 1. 改 `src-tauri/tauri.conf.json` 和 `package.json` 的 `version`
-2. 打 tag 并推送：`git tag v0.1.2 && git push origin v0.1.2`
+2. 打 tag 并推送：`git tag v0.1.3 && git push origin v0.1.3`
 3. GitHub Actions 会打三端包、签名，并更新 `latest.json`
 
 仓库 Secrets 需要：
