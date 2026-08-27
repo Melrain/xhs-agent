@@ -133,12 +133,37 @@ fn run_installer(installer: &Installer) -> Result<String, String> {
 
 fn bootstrap_uv() -> Option<PathBuf> {
     if cfg!(windows) {
-        return None;
+        return bootstrap_uv_windows();
     }
     let sh = resolve_named_bin("sh")?;
     let (code, _, _) = run_cli_as(
         &sh,
         &["-lc", "curl -LsSf https://astral.sh/uv/install.sh | sh"],
+        BOOTSTRAP_TIMEOUT_MS,
+        "uv-install",
+    )
+    .ok()?;
+    if code != 0 {
+        return None;
+    }
+    resolve_named_bin("uv")
+}
+
+fn bootstrap_uv_windows() -> Option<PathBuf> {
+    let powershell = resolve_named_bin("powershell").or_else(|| {
+        let system = std::env::var_os("SystemRoot").map(PathBuf::from)?;
+        let path = system.join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+        path.is_file().then_some(path)
+    })?;
+    let (code, _, _) = run_cli_as(
+        &powershell,
+        &[
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "irm https://astral.sh/uv/install.ps1 | iex",
+        ],
         BOOTSTRAP_TIMEOUT_MS,
         "uv-install",
     )

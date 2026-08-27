@@ -14,10 +14,18 @@
 
 Intel Mac 没有安装包。
 
+macOS 第一次打开如果提示「已损坏」，把应用拖进「应用程序」后在终端执行：
+
+```bash
+xattr -cr "/Applications/小红书执行器.app"
+```
+
+这是系统隔离未公证应用，不是安装包损坏。
+
 ## 发布新版本
 
 1. 改 `src-tauri/tauri.conf.json` 和 `package.json` 的 `version`
-2. 打 tag 并推送：`git tag v0.1.1 && git push origin v0.1.1`
+2. 打 tag 并推送：`git tag v0.1.2 && git push origin v0.1.2`
 3. GitHub Actions 会打三端包、签名，并更新 `latest.json`
 
 仓库 Secrets 需要：

@@ -4,9 +4,14 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 const SHORT_TIMEOUT_MS: u64 = 15_000;
 const LIST_TIMEOUT_MS: u64 = 30_000;
@@ -219,6 +224,33 @@ pub fn resolve_xhs_bin() -> Option<PathBuf> {
     resolve_named_bin("xhs")
 }
 
+pub(crate) fn configure_child(command: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
+}
+
+pub(crate) fn is_windows_apps_alias(path: &Path) -> bool {
+    path.to_string_lossy()
+        .replace('\\', "/")
+        .split('/')
+        .any(|part| part.eq_ignore_ascii_case("WindowsApps"))
+}
+
+fn python_names() -> &'static [&'static str] {
+    if cfg!(windows) {
+        &["python.exe", "python3.exe", "python", "python3"]
+    } else {
+        &["python3", "python"]
+    }
+}
+
+fn usable_bin(path: &Path) -> bool {
+    path.is_file() && !is_windows_apps_alias(path)
+}
+
 pub(crate) fn resolve_named_bin(name: &str) -> Option<PathBuf> {
     let mut names = vec![name.to_string()];
     if cfg!(windows) && !name.ends_with(".exe") {
@@ -227,7 +259,7 @@ pub(crate) fn resolve_named_bin(name: &str) -> Option<PathBuf> {
     for dir in candidate_bin_dirs() {
         for file in &names {
             let path = dir.join(file);
-            if path.is_file() {
+            if usable_bin(&path) {
                 return Some(path);
             }
         }
@@ -252,9 +284,9 @@ pub(crate) fn resolve_companion_python() -> Result<PathBuf, String> {
         return fallback_python3().ok_or_else(|| "找不到 Python，无法启动扫码。".into());
     };
     let real = std::fs::canonicalize(&bin).unwrap_or(bin);
-    if let Some(sibling) = real.parent().map(|dir| dir.join("python")) {
-        if sibling.is_file() {
-            return Ok(sibling);
+    if let Some(dir) = real.parent() {
+        if let Some(python) = python_in_dir(dir) {
+            return Ok(python);
         }
     }
     if let Some(from_shebang) = python_from_shebang(&real) {
@@ -263,11 +295,20 @@ pub(crate) fn resolve_companion_python() -> Result<PathBuf, String> {
     fallback_python3().ok_or_else(|| "找不到与 xhs 配套的 Python。".into())
 }
 
+fn python_in_dir(dir: &Path) -> Option<PathBuf> {
+    for name in python_names() {
+        let path = dir.join(name);
+        if usable_bin(&path) {
+            return Some(path);
+        }
+    }
+    None
+}
+
 fn fallback_python3() -> Option<PathBuf> {
     for dir in candidate_bin_dirs() {
-        let path = dir.join("python3");
-        if path.is_file() {
-            return Some(path);
+        if let Some(python) = python_in_dir(&dir) {
+            return Some(python);
         }
     }
     None
@@ -298,6 +339,9 @@ fn candidate_bin_dirs() -> Vec<PathBuf> {
         dirs.push(home.join(".local/bin"));
         dirs.push(home.join(".cargo/bin"));
         dirs.extend(python_user_bin_dirs(&home));
+    }
+    if let Some(local_app) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(local_app).join("uv").join("bin"));
     }
     dirs.push(PathBuf::from("/opt/homebrew/bin"));
     dirs.push(PathBuf::from("/usr/local/bin"));
@@ -563,7 +607,9 @@ pub(crate) fn run_cli_as(
     timeout_ms: u64,
     name: &str,
 ) -> Result<(i32, String, String), String> {
-    let mut child = Command::new(bin)
+    let mut command = Command::new(bin);
+    configure_child(&mut command);
+    let mut child = command
         .args(args)
         .envs(sanitize_cli_env())
         .stdin(Stdio::null())
@@ -971,5 +1017,15 @@ mod tests {
     fn python_user_dirs_tolerate_missing_home_layout() {
         let dirs = python_user_bin_dirs(&std::env::temp_dir().join("xhs-no-python-home"));
         assert!(dirs.is_empty());
+    }
+
+    #[test]
+    fn skips_microsoft_store_python_aliases() {
+        assert!(is_windows_apps_alias(Path::new(
+            r"C:\Users\me\AppData\Local\Microsoft\WindowsApps\python.exe"
+        )));
+        assert!(!is_windows_apps_alias(Path::new(
+            r"C:\Users\me\AppData\Local\Programs\Python\Python312\python.exe"
+        )));
     }
 }

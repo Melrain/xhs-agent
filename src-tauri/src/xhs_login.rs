@@ -1,4 +1,4 @@
-use crate::xhs::{resolve_companion_python, sanitize_cli_env};
+use crate::xhs::{configure_child, resolve_companion_python, sanitize_cli_env};
 use serde::Serialize;
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Read};
@@ -90,7 +90,9 @@ impl XhsLogin {
         let expires_at = rfc3339_from_now_ms(timeout_ms);
         let timeout_s = (timeout_ms / 1000).max(1).to_string();
 
-        let mut child = Command::new(&python)
+        let mut command = Command::new(&python);
+        configure_child(&mut command);
+        let mut child = command
             .arg(&helper)
             .arg("--timeout-s")
             .arg(&timeout_s)
@@ -395,6 +397,12 @@ fn resolve_helper_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn terminate_pid(pid: u32) {
+    if cfg!(windows) {
+        let mut command = Command::new("taskkill");
+        configure_child(&mut command);
+        let _ = command.args(["/PID", &pid.to_string(), "/T", "/F"]).status();
+        return;
+    }
     let _ = Command::new("kill")
         .args(["-TERM", &pid.to_string()])
         .status();
