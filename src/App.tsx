@@ -66,7 +66,10 @@ function AppShell() {
             <CloudGate ready={cloud.ready} signedIn={cloud.signedIn}>
               <div className="app-pane-stack">
                 <div className="app-pane" hidden={workspace !== "recruit"}>
-                  <RecruitWorkspace />
+                  <RecruitWorkspace
+                    active={workspace === "recruit"}
+                    onOpenComments={() => setWorkspace("comments")}
+                  />
                 </div>
                 <div className="app-pane" hidden={workspace !== "makeup"}>
                   <MakeupWorkspace />

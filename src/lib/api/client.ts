@@ -1,4 +1,5 @@
 import { resolveApiUrl } from "@/lib/api-base"
+import { desktopFetch } from "@/lib/api/desktop-fetch"
 import {
   clearTokens,
   getAccessToken,
@@ -105,7 +106,7 @@ export async function backendFetch<T>(
           nextHeaders.set("Authorization", `Bearer ${access}`)
         }
       }
-      return fetch(resolveApiUrl(path), {
+      return desktopFetch(resolveApiUrl(path), {
         ...rest,
         cache: "no-store",
         headers: nextHeaders,
@@ -196,7 +197,7 @@ export async function backendFetchBlob(
           nextHeaders.set("Authorization", `Bearer ${access}`)
         }
       }
-      return fetch(resolveApiUrl(path), {
+      return desktopFetch(resolveApiUrl(path), {
         ...rest,
         cache: "no-store",
         headers: nextHeaders,
@@ -260,7 +261,7 @@ async function refreshAccessToken() {
       return false
     }
     try {
-      const response = await fetch(resolveApiUrl("/auth/refresh"), {
+      const response = await desktopFetch(resolveApiUrl("/auth/refresh"), {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json", "X-Client": "desktop" },

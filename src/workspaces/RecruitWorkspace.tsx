@@ -23,6 +23,7 @@ import {
   type RecruitImageMode,
 } from "@/hooks/use-recruit-tasks"
 import { mediaFileName, saveMediaFile } from "@/lib/save-media"
+import { RecruitPackagesPanel } from "@/workspaces/RecruitPackagesPanel"
 import type {
   AspectRatio,
   Asset,
@@ -52,7 +53,13 @@ const POSITIONS: OverlayPosition[] = [
   "bottom-right",
 ]
 
-export function RecruitWorkspace() {
+export function RecruitWorkspace({
+  onOpenComments,
+  active = true,
+}: {
+  onOpenComments?: () => void
+  active?: boolean
+}) {
   const queryClient = useQueryClient()
   const { assets: historyAssets, isPending: historyPending, error: historyError } =
     useRecruitAssets()
@@ -92,6 +99,7 @@ export function RecruitWorkspace() {
   const [overlayBusy, setOverlayBusy] = useState(false)
   const [overlayError, setOverlayError] = useState<string>()
   const [overlayStartedAt, setOverlayStartedAt] = useState<number>()
+  const [recruitView, setRecruitView] = useState<"studio" | "packages">("studio")
   const [saving, setSaving] = useState(false)
   const [saveHint, setSaveHint] = useState<string | null>(null)
 
@@ -432,6 +440,30 @@ export function RecruitWorkspace() {
   )
 
   return (
+    <div className="recruit-shell">
+      <div className="recruit-tabs">
+        <button
+          type="button"
+          className={recruitView === "studio" ? "active" : ""}
+          onClick={() => setRecruitView("studio")}
+        >
+          创作
+        </button>
+        <button
+          type="button"
+          className={recruitView === "packages" ? "active" : ""}
+          onClick={() => setRecruitView("packages")}
+        >
+          发布包
+        </button>
+      </div>
+      {recruitView === "packages" ? (
+        <RecruitPackagesPanel
+          assets={assets}
+          active={active}
+          onNeedLogin={() => onOpenComments?.()}
+        />
+      ) : (
     <div className="workspace studio">
       <aside className="panel stack">
         <div className="mode-tabs">
@@ -788,6 +820,8 @@ export function RecruitWorkspace() {
           )}
         </button>
       ) : null}
+    </div>
+      )}
     </div>
   )
 }

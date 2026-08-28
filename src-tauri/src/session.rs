@@ -1,4 +1,4 @@
-use crate::store::{StoredAccount, Store};
+use crate::store::{Store, StoredAccount};
 use crate::xhs::{
     comments_command, comments_from_envelope, comments_timeout_ms, envelope_code, envelope_error,
     home_dir, short_timeout_ms, XhsNotePullResult, XhsNoteView, XhsProbe, XhsRuntime,
@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 pub struct SessionHub {
     xhs: XhsRuntime,
     store: Store,
+    app_dir: PathBuf,
     vault: PathBuf,
     slot: PathBuf,
 }
@@ -25,19 +26,30 @@ pub struct SessionSnapshot {
 
 impl SessionHub {
     pub fn new(xhs: XhsRuntime, store: Store, app_dir: PathBuf) -> Self {
+        let vault = app_dir.join("sessions");
         Self {
             xhs,
             store,
-            vault: app_dir.join("sessions"),
+            app_dir,
+            vault,
             slot: default_cli_cookie_path(),
         }
     }
 
+    pub fn app_data_dir(&self) -> &Path {
+        &self.app_dir
+    }
+
+    pub fn active_account_id(&self) -> Result<Option<String>, String> {
+        self.store.active_account_id()
+    }
+
     #[cfg(test)]
-    fn for_test(store: Store, vault: PathBuf, slot: PathBuf) -> Self {
+    fn for_test(store: Store, app_dir: PathBuf, vault: PathBuf, slot: PathBuf) -> Self {
         Self {
             xhs: XhsRuntime::new(),
             store,
+            app_dir,
             vault,
             slot,
         }
@@ -107,7 +119,10 @@ impl SessionHub {
             self.install(account_id)?;
             self.store.set_active_account(Some(account_id))?;
             let probe = self.xhs.probe_unlocked("status");
-            let ok = probe.user.as_ref().is_some_and(|user| user.xhs_user_id == account_id);
+            let ok = probe
+                .user
+                .as_ref()
+                .is_some_and(|user| user.xhs_user_id == account_id);
             self.store.set_session_ok(account_id, ok)?;
             if let Some(user) = &probe.user {
                 if user.xhs_user_id == account_id {
@@ -129,9 +144,7 @@ impl SessionHub {
             delete_file(&self.vault_path(account_id))?;
             if active.as_deref() == Some(account_id) {
                 clear_cookies(&self.slot)?;
-                let next = self
-                    .first_vault_account()?
-                    .filter(|id| id != account_id);
+                let next = self.first_vault_account()?.filter(|id| id != account_id);
                 if let Some(next) = next {
                     self.install(&next)?;
                     self.store.set_active_account(Some(&next))?;
@@ -329,7 +342,8 @@ impl SessionHub {
             return Err("找不到这个账号的 session 文件".into());
         }
         if let Some(parent) = self.slot.parent() {
-            fs::create_dir_all(parent).map_err(|error| format!("无法创建 CLI 配置目录：{error}"))?;
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("无法创建 CLI 配置目录：{error}"))?;
         }
         fs::copy(&source, &self.slot).map_err(|error| format!("无法装入 session：{error}"))?;
         restrict_file(&self.slot);
@@ -342,7 +356,8 @@ impl SessionHub {
         }
         let dest = self.vault_path(account_id);
         if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(|error| format!("无法创建 session 目录：{error}"))?;
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("无法创建 session 目录：{error}"))?;
         }
         fs::copy(&self.slot, &dest).map_err(|error| format!("无法保存 session：{error}"))?;
         restrict_file(&dest);
@@ -350,7 +365,9 @@ impl SessionHub {
     }
 
     fn vault_path(&self, account_id: &str) -> PathBuf {
-        self.vault.join(sanitize_account_id(account_id)).join("cookies.json")
+        self.vault
+            .join(sanitize_account_id(account_id))
+            .join("cookies.json")
     }
 
     fn vault_exists(&self, account_id: &str) -> bool {
@@ -370,7 +387,8 @@ fn collect_comments_unlocked(
     runtime: &XhsRuntime,
     note: &XhsNoteView,
 ) -> Result<Vec<crate::xhs::XhsCommentView>, String> {
-    let status = runtime.run_envelope_unlocked(&["status".into(), "--json".into()], short_timeout_ms())?;
+    let status =
+        runtime.run_envelope_unlocked(&["status".into(), "--json".into()], short_timeout_ms())?;
     if let Some(error) = envelope_error(&status) {
         return Err(error);
     }
@@ -414,9 +432,12 @@ fn cookies_look_valid(path: &Path) -> bool {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return false;
     };
-    ["a1", "web_session", "webId"]
-        .iter()
-        .any(|key| value.get(*key).and_then(|item| item.as_str()).is_some_and(|text| !text.is_empty()))
+    ["a1", "web_session", "webId"].iter().any(|key| {
+        value
+            .get(*key)
+            .and_then(|item| item.as_str())
+            .is_some_and(|text| !text.is_empty())
+    })
 }
 
 fn clear_cookies(path: &Path) -> Result<(), String> {
@@ -459,6 +480,7 @@ mod tests {
         let store = Store::open(root.join("db.sqlite")).unwrap();
         let hub = SessionHub::for_test(
             store,
+            root.clone(),
             root.join("sessions"),
             root.join("cli").join("cookies.json"),
         );
@@ -514,12 +536,17 @@ mod tests {
     fn lists_no_notes_without_active_account() {
         let (hub, root) = temp_hub();
         hub.store.upsert_account(&user()).unwrap();
-        hub.store.upsert_notes("u1", &[crate::xhs::XhsNoteView {
-            id: "n1".into(),
-            title: "金丝熊".into(),
-            comments_count: 2,
-            xsec_token: None,
-        }]).unwrap();
+        hub.store
+            .upsert_notes(
+                "u1",
+                &[crate::xhs::XhsNoteView {
+                    id: "n1".into(),
+                    title: "金丝熊".into(),
+                    comments_count: 2,
+                    xsec_token: None,
+                }],
+            )
+            .unwrap();
         assert!(hub.list_notes_for_active().unwrap().is_empty());
         hub.store.set_active_account(Some("u1")).unwrap();
         assert_eq!(hub.list_notes_for_active().unwrap().len(), 1);

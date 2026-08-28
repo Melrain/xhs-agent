@@ -8,6 +8,14 @@
     "dialog:default",
     "opener:default",
     "process:default",
-    "updater:default"
+    "updater:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://r7ruoxi.com/*" },
+        { "url": "http://localhost:8080/*" },
+        { "url": "http://127.0.0.1:8080/*" }
+      ]
+    }
   ]
 }

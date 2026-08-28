@@ -1,6 +1,7 @@
 mod cli_install;
 mod export;
 mod media_save;
+mod publish;
 mod session;
 mod store;
 mod xhs;
@@ -217,6 +218,17 @@ async fn xhs_sync_notes(hub: State<'_, SessionHub>) -> Result<Vec<StoredNote>, S
 }
 
 #[tauri::command]
+async fn xhs_publish_note(
+    hub: State<'_, SessionHub>,
+    input: publish::PublishNoteInput,
+) -> Result<publish::PublishNoteResult, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || publish::publish_note(&hub, input))
+        .await
+        .map_err(|error| format!("任务中断：{error}"))?
+}
+
+#[tauri::command]
 async fn xhs_sync_note_comments(
     hub: State<'_, SessionHub>,
     note_id: String,
@@ -244,6 +256,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_http::init())
         .manage(xhs.clone())
         .manage(XhsLogin::new())
         .setup(move |app| {
@@ -271,6 +284,7 @@ pub fn run() {
             store_list_comments,
             export_comments,
             save_media,
+            xhs_publish_note,
             xhs_sync_notes,
             xhs_sync_note_comments
         ])
