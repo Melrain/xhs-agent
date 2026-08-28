@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import signal
+import sys
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -25,6 +26,66 @@ LOGGED_IN_PATHS = (
     "/user/me",
     "/search_result",
 )
+
+
+DEFAULT_CAMOUFOX_LOCALES = ("zh-CN", "zh", "en-US")
+
+
+def camoufox_os_for_host(sys_platform: str | None = None) -> str:
+    """Pin Camoufox's fingerprint OS to the real machine.
+
+    Camoufox defaults to randomly choosing windows/macos/linux. Xiaohongshu
+    then labels the QR confirm screen with that spoofed platform, so a Windows
+    user can be asked to authorize a macOS login.
+    """
+    platform = sys.platform if sys_platform is None else sys_platform
+    if platform == "win32":
+        return "windows"
+    if platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def probe_host_screen() -> Any | None:
+    """Bound the generated screen to the real monitor, if Camoufox can see it."""
+    try:
+        from browserforge.fingerprints import Screen
+        from camoufox.display import largest_display
+    except ImportError:
+        return None
+    display = largest_display()
+    if display is None:
+        return None
+    width = int(getattr(display, "width", 0) or 0)
+    height = int(getattr(display, "height", 0) or 0)
+    if width < 800 or height < 600:
+        return None
+    return Screen(max_width=width, max_height=height)
+
+
+def camoufox_launch_kwargs(
+    *,
+    sys_platform: str | None = None,
+    locale: list[str] | tuple[str, ...] | None = None,
+    screen: Any = None,
+    probe_screen: bool = True,
+) -> dict[str, Any]:
+    """Launch Camoufox aligned to the host environment, not a random device.
+
+    Camoufox always synthesizes a Firefox fingerprint. Copying the machine's
+    real Chrome/GPU/canvas onto that patched engine is itself a leak and is
+    what trips Xiaohongshu risk control. Align the observable environment
+    (OS, locale, screen) and let Camoufox keep the rest internally consistent.
+    """
+    kwargs: dict[str, Any] = {
+        "headless": False,
+        "os": camoufox_os_for_host(sys_platform),
+        "locale": list(DEFAULT_CAMOUFOX_LOCALES if locale is None else locale),
+    }
+    resolved = screen if screen is not None else (probe_host_screen() if probe_screen else None)
+    if resolved is not None:
+        kwargs["screen"] = resolved
+    return kwargs
 
 
 def emit(payload: dict[str, object]) -> None:
@@ -199,7 +260,7 @@ def main() -> int:
     emit({"event": "ready"})
 
     try:
-        with Camoufox(headless=False) as browser:
+        with Camoufox(**camoufox_launch_kwargs()) as browser:
             page = browser.new_page()
 
             def handle_response(response: Any) -> None:

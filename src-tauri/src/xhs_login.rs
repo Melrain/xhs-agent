@@ -659,6 +659,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn qr_helper_aligns_camoufox_to_the_host() {
+        let source = include_str!("../resources/xhs_qr_login.py");
+        assert!(
+            source.contains("Camoufox(**camoufox_launch_kwargs())"),
+            "QR login must launch Camoufox from host-aligned kwargs, not a random fingerprint"
+        );
+        assert!(source.contains("zh-CN"));
+        assert!(source.contains("if platform == \"win32\":"));
+        assert!(source.contains("return \"windows\""));
+    }
+
+    #[test]
     fn reads_a_qr_url() {
         assert_eq!(
             parse_qr_event(r#"{"event":"qr","url":"https://example.com/q"}"#),
