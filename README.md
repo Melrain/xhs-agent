@@ -25,7 +25,7 @@ xattr -cr "/Applications/R7工作台.app"
 ## 发布新版本
 
 1. 改 `src-tauri/tauri.conf.json` 和 `package.json` 的 `version`
-2. 打 tag 并推送：`git tag v0.1.6 && git push origin v0.1.6`
+2. 打 tag 并推送：`git tag v0.1.7 && git push origin v0.1.7`
 3. GitHub Actions 会打三端包、签名，并更新 `latest.json`
 
 仓库 Secrets 需要：

@@ -135,7 +135,7 @@ export function groupLooksByDay<T extends { createdAt: string }>(
   const groups: { label: string; items: T[] }[] = []
   for (const look of looks) {
     const label = historyDayLabel(look.createdAt, now)
-    const last = groups.at(-1)
+    const last = groups[groups.length - 1]
     if (last?.label === label) last.items.push(look)
     else groups.push({ label, items: [look] })
   }
