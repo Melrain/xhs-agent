@@ -9,7 +9,9 @@ export function SetupDialog({
   busy: boolean;
   onRetry: () => void;
 }) {
-  const failed = report?.steps.some((step) => step.status === 'error') ?? false;
+  const failed =
+    (report?.steps.some((step) => step.status === 'error') ?? false) ||
+    Boolean(report && !report.ready && !busy);
 
   return (
     <div className="setup-mask">
@@ -33,7 +35,7 @@ export function SetupDialog({
           ))}
         </ol>
         {failed && !busy ? (
-          <button type="button" onClick={onRetry}>
+          <button type="button" className="primary-btn" onClick={onRetry}>
             重试安装
           </button>
         ) : (

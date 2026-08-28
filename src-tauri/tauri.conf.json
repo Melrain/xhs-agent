@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "小红书执行器",
+  "productName": "R7工作台",
   "version": "0.1.5",
   "identifier": "com.zhenyuye.xhs-agent",
   "build": {
@@ -12,10 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "评论用户",
-        "width": 1180,
+        "title": "R7工作台",
+        "width": 1280,
         "height": 800,
+        "minWidth": 1100,
+        "minHeight": 720,
         "resizable": true,
+        "maximizable": true,
         "center": true
       }
     ],

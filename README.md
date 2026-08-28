@@ -17,7 +17,7 @@ Intel Mac 没有安装包。
 macOS 第一次打开如果提示「已损坏」，把应用拖进「应用程序」后在终端执行：
 
 ```bash
-xattr -cr "/Applications/小红书执行器.app"
+xattr -cr "/Applications/R7工作台.app"
 ```
 
 这是系统隔离未公证应用，不是安装包损坏。

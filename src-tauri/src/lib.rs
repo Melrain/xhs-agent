@@ -1,5 +1,6 @@
 mod cli_install;
 mod export;
+mod media_save;
 mod session;
 mod store;
 mod xhs;
@@ -178,6 +179,16 @@ async fn export_comments(
         .map(Some)
 }
 
+#[tauri::command]
+async fn save_media(
+    app: AppHandle,
+    url: Option<String>,
+    bytes: Option<Vec<u8>>,
+    file_name: String,
+) -> Result<Option<String>, String> {
+    media_save::save_media(app, url, bytes, file_name).await
+}
+
 fn sanitize_file_name(name: &str) -> String {
     let trimmed = name.trim();
     let safe: String = trimmed
@@ -259,6 +270,7 @@ pub fn run() {
             store_list_notes,
             store_list_comments,
             export_comments,
+            save_media,
             xhs_sync_notes,
             xhs_sync_note_comments
         ])
