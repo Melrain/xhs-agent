@@ -52,9 +52,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: v__VERSION__
-          releaseName: 评论用户 v__VERSION__
+          releaseName: R7工作台 v__VERSION__
           releaseBody: |
-            本机桌面端，用来拉取自己笔记下的评论用户。
+            本机桌面端：招聘出图、组笔记草稿、一键发到小红书。
 
             **支持：** Windows x64、Apple Silicon、Linux x64。
             已安装的用户打开应用后可直接更新，不必重新下载安装包。
