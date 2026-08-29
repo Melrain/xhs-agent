@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { studioErrorMessage } from "@/lib/api/client"
 import { useNotePackageMutations, useNotePackages } from "@/hooks/use-note-packages"
 import { usePublishNotePackage } from "@/hooks/use-publish-note-package"
-import type { NotePackage } from "@/lib/api/packages"
+import type { NoteAssignment, NotePackage } from "@/lib/api/packages"
 import { CreateNoteWizard } from "@/workspaces/CreateNoteWizard"
 import { accountLabel, sessionSnapshot, type StoredAccount } from "@/session"
 
@@ -14,7 +14,30 @@ type Props = {
 function statusLabel(status: NotePackage["status"]) {
   if (status === "ready") return "已完成"
   if (status === "draft") return "草稿"
+  if (status === "archived") return "已归档"
   return status
+}
+
+function assignmentText(assignment: NoteAssignment) {
+  if (assignment.status === "published") {
+    return assignment.xhsNoteId ? `已发布 · ${assignment.xhsNoteId}` : "已发布"
+  }
+  if (assignment.status === "publishing") return "发布中"
+  if (assignment.status === "failed") {
+    return assignment.error ? `失败 · ${assignment.error}` : "发布失败"
+  }
+  return assignment.status
+}
+
+function formatNoteDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleString("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
 export function NotesWorkspace({ active = true, onNeedLogin }: Props) {
@@ -63,6 +86,7 @@ export function NotesWorkspace({ active = true, onNeedLogin }: Props) {
   }, [active, refreshSession])
 
   const selectedAccount = accounts.find((account) => account.xhsUserId === activeAccountId)
+  const packages = packagesQuery.data ?? []
 
   async function handlePublish(pkg: NotePackage) {
     setHint(null)
@@ -103,13 +127,24 @@ export function NotesWorkspace({ active = true, onNeedLogin }: Props) {
 
   return (
     <div className="workspace notes">
-      <header className="notes-head">
-        <div>
-          <p className="section-label">笔记</p>
-          <p className="status-text">组好的笔记会保存在云端，选好账号后一键发到小红书。</p>
+      <header className="notes-toolbar">
+        <div className="notes-toolbar-meta">
+          <p className={hint ? "status-text" : "status-text notes-toolbar-hint"}>
+            {hint ?? "组好的笔记会保存在云端，选好账号后一键发到小红书。"}
+          </p>
+          {pendingWriteback ? (
+            <button
+              type="button"
+              className="ghost-btn compact"
+              disabled={Boolean(publishingPackageId)}
+              onClick={() => void retryWriteback().then(setHint)}
+            >
+              重试写回云端状态
+            </button>
+          ) : null}
         </div>
-        <div className="row">
-          <label className="field package-account-field">
+        <div className="notes-toolbar-actions">
+          <label className="field notes-account-field">
             <span>发布账号</span>
             <select
               value={activeAccountId}
@@ -130,84 +165,91 @@ export function NotesWorkspace({ active = true, onNeedLogin }: Props) {
         </div>
       </header>
 
-      {hint ? <p className="status-text">{hint}</p> : null}
-      {pendingWriteback ? (
-        <button
-          type="button"
-          className="ghost-btn"
-          disabled={Boolean(publishingPackageId)}
-          onClick={() => void retryWriteback().then(setHint)}
-        >
-          重试写回云端状态
-        </button>
+      {packagesQuery.isLoading && packages.length === 0 ? (
+        <div className="notes-state">
+          <p className="status-text">加载中…</p>
+        </div>
+      ) : null}
+      {packagesQuery.error && packages.length === 0 ? (
+        <div className="notes-state">
+          <p className="status-text error">{studioErrorMessage(packagesQuery.error)}</p>
+        </div>
       ) : null}
 
-      {packagesQuery.isLoading ? <p className="status-text">加载中…</p> : null}
-      {packagesQuery.error ? (
-        <p className="status-text error">{studioErrorMessage(packagesQuery.error)}</p>
+      {!packagesQuery.isLoading && packages.length === 0 && !packagesQuery.error ? (
+        <div className="notes-state">
+          <p className="notes-empty-title">还没有笔记</p>
+          <p className="status-text">从素材库选图，生成文案后就能发到小红书。</p>
+          <button type="button" className="primary-btn" onClick={() => setEditingPackage(null)}>
+            创建笔记
+          </button>
+        </div>
       ) : null}
 
-      <ul className="package-list">
-        {(packagesQuery.data ?? []).map((pkg) => (
-          <li key={pkg.id} className="package-card">
-            <button
-              type="button"
-              className="package-card-open"
-              onClick={() => setEditingPackage(pkg)}
-            >
-              <div className="package-card-head">
-                <strong>{pkg.title || "未命名"}</strong>
-                <span className="package-status">{statusLabel(pkg.status)}</span>
-              </div>
-              <p className="package-card-body">
-                {pkg.body.slice(0, 120)}
-                {pkg.body.length > 120 ? "…" : ""}
-              </p>
-              <div className="package-thumb-row">
-                {pkg.media.slice(0, 4).map((item) => (
-                  <img key={item.id} src={item.url} alt="" />
-                ))}
-                {pkg.media.length > 4 ? <span>+{pkg.media.length - 4}</span> : null}
-              </div>
-            </button>
-            <div className="row">
-              <button
-                type="button"
-                className="primary-btn compact"
-                disabled={
-                  Boolean(publishingPackageId) ||
-                  Boolean(pendingWriteback) ||
-                  pkg.status !== "ready"
-                }
-                onClick={() => void handlePublish(pkg)}
-              >
-                {pkg.status !== "ready"
-                  ? "草稿未完成"
-                  : publishingPackageId === pkg.id
-                    ? "发布中…"
-                    : "发到小红书"}
-              </button>
-              <button
-                type="button"
-                className="ghost-btn compact"
-                disabled={mut.remove.isPending}
-                onClick={() => void handleDelete(pkg)}
-              >
-                删除
-              </button>
-            </div>
-            {pkg.assignments[0] ? (
-              <p className="status-text">
-                最近投放：{pkg.assignments[0].status}
-                {pkg.assignments[0].xhsNoteId ? ` · ${pkg.assignments[0].xhsNoteId}` : ""}
-                {pkg.assignments[0].error ? ` · ${pkg.assignments[0].error}` : ""}
-              </p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {!packagesQuery.isLoading && (packagesQuery.data ?? []).length === 0 ? (
-        <p className="status-text">还没有笔记，点「创建笔记」开始组稿。</p>
+      {packages.length > 0 ? (
+        <ul className="notes-library">
+          {packages.map((pkg) => {
+            const cover = pkg.media[0]
+            const extra = Math.max(0, pkg.media.length - 1)
+            const latest = pkg.assignments[0]
+            return (
+              <li key={pkg.id} className="note-card">
+                <button
+                  type="button"
+                  className="note-card-open"
+                  onClick={() => setEditingPackage(pkg)}
+                >
+                  <div className="note-card-cover">
+                    {cover ? <img src={cover.url} alt="" /> : <span>无图</span>}
+                    <span className={`note-status is-${pkg.status}`}>{statusLabel(pkg.status)}</span>
+                    {extra > 0 ? <span className="note-card-count">+{extra}</span> : null}
+                  </div>
+                  <div className="note-card-copy">
+                    <strong>{pkg.title || "未命名"}</strong>
+                    <p>{pkg.body || "还没写正文"}</p>
+                    {pkg.topics.length > 0 ? (
+                      <div className="note-topic-row">
+                        {pkg.topics.slice(0, 3).map((topic) => (
+                          <span key={topic}>#{topic}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <p className="note-card-meta">
+                      {formatNoteDate(pkg.updatedAt)}
+                      {latest ? ` · ${assignmentText(latest)}` : ""}
+                    </p>
+                  </div>
+                </button>
+                <div className="note-card-actions">
+                  <button
+                    type="button"
+                    className="primary-btn compact"
+                    disabled={
+                      Boolean(publishingPackageId) ||
+                      Boolean(pendingWriteback) ||
+                      pkg.status !== "ready"
+                    }
+                    onClick={() => void handlePublish(pkg)}
+                  >
+                    {pkg.status !== "ready"
+                      ? "草稿未完成"
+                      : publishingPackageId === pkg.id
+                        ? "发布中…"
+                        : "发到小红书"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost-btn compact"
+                    disabled={mut.remove.isPending}
+                    onClick={() => void handleDelete(pkg)}
+                  >
+                    删除
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       ) : null}
     </div>
   )
