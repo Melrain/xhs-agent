@@ -153,82 +153,18 @@ export function MakeupWorkspace() {
 
   return (
     <div className="workspace makeup">
-      <aside className="makeup-col makeup-source">
-        <div className="makeup-col-head">
-          <h3>源图</h3>
-          <button type="button" className="makeup-text-btn" onClick={() => fileInputRef.current?.click()}>
-            导入
-          </button>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(event) => {
-            void importFiles(Array.from(event.target.files ?? []))
-            event.target.value = ""
-          }}
-        />
-        <div className="makeup-source-preview">
-          {selected ? (
-            <img src={selected.url} alt={selected.name} />
-          ) : (
-            <p className="status-text">{charactersQuery.isPending ? "加载中…" : "导入一张脸"}</p>
-          )}
-        </div>
-        {selected ? (
-          <div className="makeup-source-meta">
-            <span>{selected.name}</span>
-            <button type="button" className="makeup-text-btn" onClick={() => void removeCharacter(selected)}>
-              删除
-            </button>
-          </div>
-        ) : null}
-        <div className="makeup-source-list">
-          {cards.map((card) => (
-            <button
-              key={card.id}
-              type="button"
-              className={card.id === selectedId ? "makeup-face is-active" : "makeup-face"}
-              onClick={() => setSelectedId(card.id)}
-            >
-              <img src={card.url} alt={card.name} />
-            </button>
-          ))}
-        </div>
-      </aside>
-
-      <section className="makeup-col makeup-refs">
-        {notice ? (
-          <div className="makeup-banner">
-            <p>{notice}</p>
-            <button type="button" className="makeup-text-btn" onClick={() => setNotice(undefined)}>
+      <header className="makeup-toolbar">
+        <div className="makeup-toolbar-meta">
+          <p className={notice ? "status-text" : "status-text makeup-toolbar-hint"}>
+            {notice ?? "选一张脸，再选妆造和服装参考后出图。"}
+          </p>
+          {notice ? (
+            <button type="button" className="ghost-btn compact" onClick={() => setNotice(undefined)}>
               关闭
             </button>
-          </div>
-        ) : null}
-        <div className="makeup-col-head">
-          <h3>参考</h3>
+          ) : null}
         </div>
-        <div className="makeup-ref-slots">
-          <RefSlot
-            label="妆造"
-            value={liveDraft.makeup}
-            empty="点这里选妆造"
-            onOpen={() => setPicker("makeup")}
-            onClear={() => setDraft((current) => ({ ...current, makeup: undefined }))}
-          />
-          <RefSlot
-            label="服装"
-            value={liveDraft.outfit}
-            empty="点这里选服装"
-            onOpen={() => setPicker("wardrobe")}
-            onClear={() => setDraft((current) => ({ ...current, outfit: undefined }))}
-          />
-        </div>
-        <footer className="makeup-refs-foot">
+        <div className="makeup-toolbar-actions">
           <input
             className="makeup-refine"
             value={liveDraft.refine}
@@ -236,7 +172,6 @@ export function MakeupWorkspace() {
             placeholder="补充一句细节"
           />
           <select
-            className="makeup-select"
             value={settings.quality ?? "low"}
             onChange={(event) => settings.set({ quality: event.target.value as typeof settings.quality })}
             aria-label="画质"
@@ -247,7 +182,6 @@ export function MakeupWorkspace() {
             <option value="high">高画质</option>
           </select>
           <select
-            className="makeup-select"
             value={settings.resolution ?? "auto"}
             onChange={(event) =>
               settings.set({ resolution: event.target.value as typeof settings.resolution })
@@ -267,87 +201,176 @@ export function MakeupWorkspace() {
           >
             {generateLabel}
           </button>
-        </footer>
-      </section>
+        </div>
+      </header>
 
-      <aside className="makeup-col makeup-history">
-        <div className="makeup-col-head">
-          <h3>历史</h3>
-          <button
-            type="button"
-            className="makeup-text-btn"
-            onClick={() => setScope((current) => (current === "current" ? "all" : "current"))}
-          >
-            {scope === "current" ? "只看当前脸" : "看全部"}
-          </button>
-        </div>
-        <div className="makeup-history-list">
-          {looks.length === 0 && !looksQuery.isPending ? (
-            <p className="status-text">出图后会排在这里</p>
+      <div className="makeup-body">
+        <aside className="makeup-col">
+          <div className="makeup-col-head">
+            <h3>源图</h3>
+            <button type="button" className="makeup-text-btn" onClick={() => fileInputRef.current?.click()}>
+              导入
+            </button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(event) => {
+              void importFiles(Array.from(event.target.files ?? []))
+              event.target.value = ""
+            }}
+          />
+          <div className="makeup-source-preview">
+            {selected ? (
+              <img src={selected.url} alt={selected.name} />
+            ) : (
+              <p className="status-text">{charactersQuery.isPending ? "加载中…" : "导入一张脸"}</p>
+            )}
+          </div>
+          {selected ? (
+            <div className="makeup-source-meta">
+              <span>{selected.name}</span>
+              <button type="button" className="makeup-text-btn" onClick={() => void removeCharacter(selected)}>
+                删除
+              </button>
+            </div>
           ) : null}
-          {looks.map((look) => (
-            <article
-              key={look.id}
-              className={look.status === "failed" ? "makeup-look is-failed" : "makeup-look"}
+          <div className="makeup-source-list">
+            {cards.map((card) => (
+              <button
+                key={card.id}
+                type="button"
+                className={card.id === selectedId ? "makeup-face is-active" : "makeup-face"}
+                onClick={() => setSelectedId(card.id)}
+              >
+                <img src={card.url} alt={card.name} />
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <section className="makeup-col">
+          <div className="makeup-col-head">
+            <h3>参考</h3>
+            <span>妆造和服装各选一张</span>
+          </div>
+          <div className="makeup-ref-slots">
+            <RefSlot
+              label="妆造"
+              value={liveDraft.makeup}
+              empty="点这里选妆造"
+              onOpen={() => setPicker("makeup")}
+              onClear={() => setDraft((current) => ({ ...current, makeup: undefined }))}
+            />
+            <RefSlot
+              label="服装"
+              value={liveDraft.outfit}
+              empty="点这里选服装"
+              onOpen={() => setPicker("wardrobe")}
+              onClear={() => setDraft((current) => ({ ...current, outfit: undefined }))}
+            />
+          </div>
+        </section>
+
+        <aside className="makeup-col">
+          <div className="makeup-col-head">
+            <h3>历史</h3>
+            <button
+              type="button"
+              className="makeup-text-btn"
+              onClick={() => setScope((current) => (current === "current" ? "all" : "current"))}
             >
-              {look.url ? (
-                <button type="button" className="makeup-look-media" onClick={() => setPreview(look)}>
-                  <img src={look.url} alt={look.chipTitle} />
-                </button>
-              ) : (
-                <div className="makeup-look-media">{look.status === "failed" ? "失败" : "生成中"}</div>
-              )}
-              <div className="makeup-look-body">
-                <p>{look.chipTitle}</p>
-                {look.status === "failed" ? (
-                  <p className="status-text error">{look.error || "生成失败"}</p>
-                ) : null}
-                <div className="makeup-look-actions">
+              {scope === "current" ? "只看当前脸" : "看全部"}
+            </button>
+          </div>
+          {looksQuery.isPending && looks.length === 0 ? (
+            <div className="makeup-state">
+              <p className="status-text">加载中…</p>
+            </div>
+          ) : null}
+          {!looksQuery.isPending && looks.length === 0 ? (
+            <div className="makeup-state">
+              <p className="status-text">出图后会排在这里</p>
+            </div>
+          ) : null}
+          {looks.length > 0 ? (
+            <ul className="makeup-look-grid">
+              {looks.map((look) => (
+                <li
+                  key={look.id}
+                  className={look.status === "failed" ? "makeup-look-card is-failed" : "makeup-look-card"}
+                >
                   {look.url ? (
-                    <button
-                      type="button"
-                      className="makeup-text-btn"
-                      onClick={() =>
-                        void saveMediaFile({
-                          url: look.url!,
-                          fileName: mediaFileName({
-                            kind: "image",
-                            url: look.url!,
-                            title: look.chipTitle,
-                          }),
-                        }).catch((error) => setNotice(studioErrorMessage(error)))
-                      }
-                    >
-                      下载
+                    <button type="button" className="makeup-look-cover" onClick={() => setPreview(look)}>
+                      <img src={look.url} alt={look.chipTitle} />
                     </button>
-                  ) : null}
-                  <button type="button" className="makeup-text-btn" onClick={() => reuseLook(look)}>
-                    复用
-                  </button>
-                  {look.status === "failed" ? (
-                    <button
-                      type="button"
-                      className="makeup-text-btn"
-                      onClick={() =>
-                        void mutations.retry.mutateAsync({
-                          lookId: look.id,
-                          settings: {
-                            quality: settings.quality,
-                            resolution: settings.resolution,
-                            model: settings.model,
-                          },
-                        })
-                      }
-                    >
-                      重试
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </aside>
+                  ) : (
+                    <div className="makeup-look-cover is-empty">
+                      {look.status === "failed" ? "失败" : "生成中"}
+                    </div>
+                  )}
+                  <span className={`makeup-look-status is-${look.status}`}>
+                    {look.status === "failed" ? "失败" : look.status === "pending" ? "生成中" : "已完成"}
+                  </span>
+                  <div className="makeup-look-copy">
+                    <strong>{look.chipTitle}</strong>
+                    {scope === "all" && look.characterName ? (
+                      <p className="makeup-look-meta">{look.characterName}</p>
+                    ) : null}
+                    {look.status === "failed" ? (
+                      <p className="status-text error">{look.error || "生成失败"}</p>
+                    ) : null}
+                    <div className="makeup-look-actions">
+                      {look.url ? (
+                        <button
+                          type="button"
+                          className="makeup-text-btn"
+                          onClick={() =>
+                            void saveMediaFile({
+                              url: look.url!,
+                              fileName: mediaFileName({
+                                kind: "image",
+                                url: look.url!,
+                                title: look.chipTitle,
+                              }),
+                            }).catch((error) => setNotice(studioErrorMessage(error)))
+                          }
+                        >
+                          下载
+                        </button>
+                      ) : null}
+                      <button type="button" className="makeup-text-btn" onClick={() => reuseLook(look)}>
+                        复用
+                      </button>
+                      {look.status === "failed" ? (
+                        <button
+                          type="button"
+                          className="makeup-text-btn"
+                          onClick={() =>
+                            void mutations.retry.mutateAsync({
+                              lookId: look.id,
+                              settings: {
+                                quality: settings.quality,
+                                resolution: settings.resolution,
+                                model: settings.model,
+                              },
+                            })
+                          }
+                        >
+                          重试
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </aside>
+      </div>
 
       {picker ? (
         <RefPicker
