@@ -8,6 +8,7 @@ import { UpdateBar } from "./shell/UpdateBar"
 import { WORKSPACES, type WorkspaceId } from "./shell/types"
 import { CommentsWorkspace } from "./workspaces/CommentsWorkspace"
 import { MakeupWorkspace } from "./workspaces/MakeupWorkspace"
+import { NotesWorkspace } from "./workspaces/NotesWorkspace"
 import { RecruitWorkspace } from "./workspaces/RecruitWorkspace"
 import "./styles.css"
 
@@ -66,9 +67,12 @@ function AppShell() {
             <CloudGate ready={cloud.ready} signedIn={cloud.signedIn}>
               <div className="app-pane-stack">
                 <div className="app-pane" hidden={workspace !== "recruit"}>
-                  <RecruitWorkspace
-                    active={workspace === "recruit"}
-                    onOpenComments={() => setWorkspace("comments")}
+                  <RecruitWorkspace />
+                </div>
+                <div className="app-pane" hidden={workspace !== "notes"}>
+                  <NotesWorkspace
+                    active={workspace === "notes"}
+                    onNeedLogin={() => setWorkspace("comments")}
                   />
                 </div>
                 <div className="app-pane" hidden={workspace !== "makeup"}>

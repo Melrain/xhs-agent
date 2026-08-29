@@ -1085,25 +1085,34 @@ select {
   flex: 1;
 }
 
-.recruit-tabs {
+.workspace.notes,
+.workspace.notes-wizard {
   display: flex;
-  gap: 8px;
-  padding: 0 4px;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 4px;
 }
 
-.recruit-tabs button {
-  padding: 8px 14px;
+.notes-head,
+.notes-wizard-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.notes-wizard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 12px;
   background: #fff;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.recruit-tabs button.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, white);
 }
 
 .workspace.packages {
@@ -1180,6 +1189,20 @@ select {
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
+}
+
+.package-card-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.package-card-open:hover .package-card-head strong {
+  color: var(--accent, #111);
 }
 
 .package-card-head {

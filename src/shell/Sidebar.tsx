@@ -1,10 +1,11 @@
-import { BriefcaseBusiness, Palette, Users } from "lucide-react"
+import { BriefcaseBusiness, NotebookPen, Palette, Users } from "lucide-react"
 import { logoutAccount } from "@/lib/auth/api"
 import type { StoredAuthUser } from "@/lib/auth/tokens"
 import { WORKSPACES, type WorkspaceId } from "./types"
 
 const ICONS = {
   recruit: BriefcaseBusiness,
+  notes: NotebookPen,
   makeup: Palette,
   comments: Users,
 } as const

@@ -38,6 +38,10 @@ export function sessionAdopt(): Promise<SessionSnapshot> {
   return invoke<SessionSnapshot>('session_adopt');
 }
 
+export function accountReady(account?: StoredAccount) {
+  return Boolean(account?.hasSession && account.sessionOk)
+}
+
 export function accountLabel(account: StoredAccount): string {
   const name = account.nickname || account.redId || account.xhsUserId;
   if (!account.hasSession) {

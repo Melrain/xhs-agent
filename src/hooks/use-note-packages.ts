@@ -7,11 +7,12 @@ import {
   updateNotePackage,
 } from "@/lib/api/packages"
 
-export function useNotePackages() {
+export function useNotePackages(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: PACKAGES_QUERY_KEY,
     queryFn: listNotePackages,
     staleTime: 10_000,
+    enabled: options?.enabled ?? true,
   })
 }
 

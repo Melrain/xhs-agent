@@ -47,14 +47,20 @@ export async function listNotePackages() {
   })
 }
 
+export async function getNotePackage(id: string) {
+  return backendFetch<NotePackage>(`/api/backend/internal/packages/${id}`, {
+    timeoutMs: 15_000,
+  })
+}
+
 export async function createNotePackage(input: {
-  title: string
-  body: string
-  topics: string[]
+  title?: string
+  body?: string
+  topics?: string[]
   job?: string
   persona?: string
   isPrivate?: boolean
-  assetIds: string[]
+  assetIds?: string[]
 }) {
   return backendFetch<NotePackage>("/api/backend/internal/packages", {
     method: "POST",
