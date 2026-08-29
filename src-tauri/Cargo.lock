@@ -5866,7 +5866,7 @@ dependencies = [
 
 [[package]]
 name = "xhs-agent"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "chrono",
  "reqwest 0.13.4",
