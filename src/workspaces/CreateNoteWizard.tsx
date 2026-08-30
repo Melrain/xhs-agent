@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Sparkles, X } from "lucide-react"
 import { generateRecruitCopy } from "@/lib/api/copy"
 import { isAbortError, studioErrorMessage } from "@/lib/api/client"
 import {
@@ -289,11 +289,13 @@ export function CreateNoteWizard({ initial, onDone, onCancel }: Props) {
             <h3>文案</h3>
             <button
               type="button"
-              className="ghost-btn compact"
+              className={copyBusy ? "ai-copy-btn is-busy" : "ai-copy-btn"}
               disabled={copyBusy || selectedAssetIds.length === 0}
               onClick={() => void generateCopy()}
             >
-              {copyBusy ? "生成中…" : "根据图片生成"}
+              <span className="ai-copy-btn-orbit" aria-hidden />
+              <Sparkles size={13} strokeWidth={2.2} className="ai-copy-btn-icon" />
+              <span className="ai-copy-btn-label">{copyBusy ? "生成中…" : "根据图片生成"}</span>
             </button>
           </div>
           <div className="notes-field-row">

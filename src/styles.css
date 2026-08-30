@@ -1407,7 +1407,7 @@ select {
 
 .notes-col-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
@@ -1418,9 +1418,218 @@ select {
   font-weight: 600;
 }
 
-.notes-col-head span {
+.notes-col-head > span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.ai-copy-btn {
+  --ai-violet: #7c3aed;
+  --ai-cyan: #06b6d4;
+  --ai-rose: #db2777;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 12px 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b21b6;
+  background:
+    linear-gradient(#fff, #faf5ff) padding-box,
+    linear-gradient(120deg, var(--ai-violet), var(--ai-cyan), var(--ai-rose)) border-box;
+  box-shadow: 0 0 0 0 rgb(124 58 237 / 0);
+  cursor: pointer;
+  transition:
+    box-shadow 0.28s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.ai-copy-btn-orbit,
+.ai-copy-btn::before,
+.ai-copy-btn::after {
+  pointer-events: none;
+}
+
+.ai-copy-btn-orbit {
+  position: absolute;
+  inset: -55%;
+  z-index: 0;
+  background: conic-gradient(
+    from 180deg,
+    transparent 0 38%,
+    var(--ai-violet) 48%,
+    var(--ai-cyan) 54%,
+    var(--ai-rose) 60%,
+    transparent 70% 100%
+  );
+  opacity: 0.55;
+  animation: ai-copy-orbit 3.6s linear infinite;
+}
+
+.ai-copy-btn::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #fff, #faf5ff);
+}
+
+.ai-copy-btn::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: 2;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 18%,
+    rgb(255 255 255 / 0) 32%,
+    rgb(196 181 253 / 0.55) 48%,
+    rgb(165 243 252 / 0.4) 54%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: ai-copy-shimmer 3.2s ease-in-out infinite;
+}
+
+.ai-copy-btn-icon,
+.ai-copy-btn-label {
+  position: relative;
+  z-index: 3;
+}
+
+.ai-copy-btn-icon {
+  flex-shrink: 0;
+  color: #7c3aed;
+  animation: ai-copy-twinkle 1.8s ease-in-out infinite;
+}
+
+.ai-copy-btn-label {
+  color: inherit;
+  font-size: inherit;
+}
+
+.ai-copy-btn:hover:not(:disabled) {
+  color: #4c1d95;
+  transform: translateY(-0.5px);
+  box-shadow:
+    0 0 0 3px rgb(124 58 237 / 0.08),
+    0 8px 20px rgb(124 58 237 / 0.16);
+}
+
+.ai-copy-btn:hover:not(:disabled) .ai-copy-btn-orbit {
+  opacity: 0.9;
+  animation-duration: 2s;
+}
+
+.ai-copy-btn.is-busy {
+  color: #4c1d95;
+  box-shadow:
+    0 0 0 3px rgb(6 182 212 / 0.1),
+    0 0 18px rgb(124 58 237 / 0.28);
+  animation: ai-copy-pulse 1.4s ease-in-out infinite;
+}
+
+.ai-copy-btn.is-busy .ai-copy-btn-orbit {
+  opacity: 1;
+  animation-duration: 1.2s;
+}
+
+.ai-copy-btn.is-busy::after {
+  animation-duration: 1.1s;
+}
+
+.ai-copy-btn.is-busy .ai-copy-btn-icon {
+  animation: ai-copy-spin 1.6s linear infinite;
+}
+
+.ai-copy-btn:disabled {
+  cursor: default;
+}
+
+.ai-copy-btn:disabled:not(.is-busy) {
+  opacity: 0.42;
+  box-shadow: none;
+  transform: none;
+}
+
+.ai-copy-btn:disabled:not(.is-busy) .ai-copy-btn-orbit,
+.ai-copy-btn:disabled:not(.is-busy)::after,
+.ai-copy-btn:disabled:not(.is-busy) .ai-copy-btn-icon {
+  animation: none;
+}
+
+.ai-copy-btn:disabled:not(.is-busy) .ai-copy-btn-orbit {
+  opacity: 0.22;
+}
+
+@keyframes ai-copy-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ai-copy-shimmer {
+  0%,
+  28% {
+    background-position: 130% 0;
+  }
+  72%,
+  100% {
+    background-position: -30% 0;
+  }
+}
+
+@keyframes ai-copy-twinkle {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes ai-copy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ai-copy-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgb(6 182 212 / 0.08),
+      0 0 14px rgb(124 58 237 / 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgb(6 182 212 / 0.14),
+      0 0 24px rgb(124 58 237 / 0.36);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-copy-btn,
+  .ai-copy-btn .ai-copy-btn-orbit,
+  .ai-copy-btn::after,
+  .ai-copy-btn-icon {
+    animation: none;
+  }
+
+  .ai-copy-btn:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
 .notes-asset-grid {
