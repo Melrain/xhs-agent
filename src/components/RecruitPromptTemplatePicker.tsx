@@ -1,5 +1,8 @@
 import { useState } from "react"
-import { RECRUIT_PROMPT_TEMPLATES } from "@/lib/recruit-prompt-templates"
+import {
+  RECRUIT_PROMPT_GROUPS,
+  RECRUIT_PROMPT_TEMPLATES,
+} from "@/lib/recruit-prompt-templates"
 
 export function RecruitPromptTemplatePicker({
   onFill,
@@ -45,24 +48,34 @@ export function RecruitPromptTemplatePicker({
               </div>
             </header>
             <div className="brief-body">
-              <section>
-                <h3>可选模板</h3>
-                <div className="brief-template-list">
-                  {RECRUIT_PROMPT_TEMPLATES.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={item.id === selectedId ? "ghost-btn compact active" : "ghost-btn compact"}
-                      onClick={() => setSelectedId(item.id)}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
+              {RECRUIT_PROMPT_GROUPS.map((group) => {
+                const items = RECRUIT_PROMPT_TEMPLATES.filter((item) => item.group === group.id)
+                if (items.length === 0) return null
+                return (
+                  <section key={group.id}>
+                    <h3>{group.label}</h3>
+                    <div className="brief-template-list">
+                      {items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={
+                            item.id === selectedId ? "ghost-btn compact active" : "ghost-btn compact"
+                          }
+                          onClick={() => setSelectedId(item.id)}
+                        >
+                          <span>{item.label}</span>
+                          {item.blurb ? <small>{item.blurb}</small> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )
+              })}
               {selected ? (
                 <section>
                   <h3>{selected.label}</h3>
+                  {selected.blurb ? <p className="brief-template-blurb">{selected.blurb}</p> : null}
                   <article>
                     <p>{selected.prompt}</p>
                   </article>

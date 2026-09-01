@@ -955,11 +955,36 @@ select {
   gap: 6px;
 }
 
+.brief-template-list button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.brief-template-list button small {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .brief-template-list button.active {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
+}
+
+.brief-template-list button.active small {
+  color: color-mix(in srgb, var(--accent) 70%, var(--muted));
+}
+
+.brief-template-blurb {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .makeup-col {

@@ -197,6 +197,7 @@ type PromptLayers = {
   energy: string
   money?: string
   camera: string
+  text?: string
 }
 
 export type T2iTemplate = {
@@ -208,7 +209,9 @@ export type T2iTemplate = {
 }
 
 const SPEC_LAYER = "小红书竖图 3:4，写实摄影，手机直出质感，人脸清晰锐利，皮肤保留真实纹理"
-const EXCLUDE_LAYER = "画面里不出现可辨认的文字、水印、logo 和二维码"
+const EXCLUDE_NO_TEXT = "画面里不出现可辨认的文字、水印、logo 和二维码"
+const EXCLUDE_NO_CONTACT = "画面里不出现微信号、二维码和水印"
+const EXCLUDE_LAYER = EXCLUDE_NO_TEXT
 
 const LAYER_ORDER: { label: string; key: keyof PromptLayers | "spec" | "exclude" }[] = [
   { label: "画面", key: "spec" },
@@ -218,8 +221,16 @@ const LAYER_ORDER: { label: string; key: keyof PromptLayers | "spec" | "exclude"
   { label: "情绪", key: "energy" },
   { label: "收益", key: "money" },
   { label: "镜头", key: "camera" },
+  { label: "文字", key: "text" },
   { label: "排除", key: "exclude" },
 ]
+
+export type BuildT2iPromptOptions = {
+  /** 叠在场景之上的文字排版说明；空则不写「文字」层 */
+  text?: string
+  /** 图上要烤可读中文时，排除层只禁微信号/二维码，不再禁所有文字 */
+  bakeReadableText?: boolean
+}
 
 const COUNT_WORD: Record<PeopleCount, string> = {
   "4": "四名",
@@ -580,12 +591,17 @@ export function getT2iTemplate(id: T2iTemplateId): T2iTemplate {
   return T2I_TEMPLATES.find((template) => template.id === id) ?? T2I_TEMPLATES[0]!
 }
 
-export function buildT2iPrompt(id: T2iTemplateId, slots: T2iSlots): string {
+export function buildT2iPrompt(
+  id: T2iTemplateId,
+  slots: T2iSlots,
+  options?: BuildT2iPromptOptions,
+): string {
   const layers = getT2iTemplate(id).assemble(slots)
   const resolved: Record<string, string | undefined> = {
     ...layers,
     spec: SPEC_LAYER,
-    exclude: EXCLUDE_LAYER,
+    text: options?.text,
+    exclude: options?.bakeReadableText ? EXCLUDE_NO_CONTACT : EXCLUDE_LAYER,
   }
 
   return LAYER_ORDER.map(({ label, key }) => ({ label, text: tidy(resolved[key]) }))
