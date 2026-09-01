@@ -23,6 +23,7 @@ import {
   type RecruitImageMode,
 } from "@/hooks/use-recruit-tasks"
 import { RecruitPromptTemplatePicker } from "@/components/RecruitPromptTemplatePicker"
+import { DEFAULT_RECRUIT_PROMPT } from "@/lib/recruit-prompt-templates"
 import { mediaFileName, saveMediaFile } from "@/lib/save-media"
 import type {
   AspectRatio,
@@ -68,7 +69,7 @@ export function RecruitWorkspace() {
   const [elapsed, setElapsed] = useState(0)
   const [models, setModels] = useState<MediaModel[]>([])
 
-  const [t2iPrompt, setT2iPrompt] = useState("")
+  const [t2iPrompt, setT2iPrompt] = useState(DEFAULT_RECRUIT_PROMPT)
   const [count, setCount] = useState(1)
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("3:4")
   const [quality, setQuality] = useState<ImageQuality>("low")
