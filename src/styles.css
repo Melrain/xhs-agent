@@ -949,6 +949,19 @@ select {
   line-height: 1.55;
 }
 
+.brief-template-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.brief-template-list button.active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .makeup-col {
   display: flex;
   flex-direction: column;
