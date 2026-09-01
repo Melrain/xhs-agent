@@ -981,7 +981,7 @@ select {
   color: color-mix(in srgb, var(--accent) 70%, var(--muted));
 }
 
-.brief-template-blurb {
+.brief-body .brief-template-blurb {
   margin: 0 0 8px;
   color: var(--muted);
   font-size: 12px;

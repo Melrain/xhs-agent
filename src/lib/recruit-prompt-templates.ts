@@ -98,7 +98,7 @@ export const RECRUIT_PROMPT_TEMPLATES: readonly RecruitPromptTemplate[] = [
     prompt: layoutPrompt(
       "poster-blank",
       "画面下三分之一是压暗的纯净暗底，只在这一条底栏叠一行大号可读中文「无责保底 6k-15k · 综合 2w+ · 私信详聊」，浅色字、字距疏、水平居中。上三分之二是人物群像，不要往脸上或身体再叠字",
-      { blankSide: "bottom", theme: "pop", energy: "high" },
+      { blankSide: "bottom", theme: "pop", energy: "high", moneyCue: "none" },
     ),
   },
   {
@@ -109,7 +109,7 @@ export const RECRUIT_PROMPT_TEMPLATES: readonly RecruitPromptTemplate[] = [
     prompt: layoutPrompt(
       "poster-blank",
       "画面顶部三分之一叠两行大号可读中文：第一行「R7-若栖传媒」，第二行「红谷滩团播」。人物群像放在画面中下部，头顶不要顶到标题。不要再写别的句子",
-      { blankSide: "top", theme: "pop", energy: "direct" },
+      { blankSide: "top", theme: "pop", energy: "direct", moneyCue: "none" },
     ),
   },
   {
@@ -142,7 +142,7 @@ export const RECRUIT_PROMPT_TEMPLATES: readonly RecruitPromptTemplate[] = [
     prompt: layoutPrompt(
       "live-onair",
       "画面左四分之一是竖排可读中文，从上到下两列：「R7-若栖传媒」和「红谷滩团播」，衬在窄暗条上，浅色字。右四分之三是团播现场，人物脸和身体都在右侧，不要被竖排挡住",
-      { viewpoint: "bystander", energy: "high", tone: "neon", moneyCue: "gift" },
+      { viewpoint: "bystander", energy: "high", tone: "neon", moneyCue: "none" },
     ),
   },
   {
@@ -153,7 +153,7 @@ export const RECRUIT_PROMPT_TEMPLATES: readonly RecruitPromptTemplate[] = [
     prompt: layoutPrompt(
       "poster-blank",
       "图上不要写任何字。底部三分之一压暗留空，留给后期叠标题",
-      { blankSide: "bottom", theme: "pop", energy: "high" },
+      { blankSide: "bottom", theme: "pop", energy: "high", moneyCue: "none" },
       false,
     ),
   },
