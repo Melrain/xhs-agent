@@ -22,7 +22,7 @@ import {
   useRecruitImageJobs,
   type RecruitImageMode,
 } from "@/hooks/use-recruit-tasks"
-import { RecruitBriefButton } from "@/components/RecruitBriefButton"
+import { RecruitPromptTemplatePicker } from "@/components/RecruitPromptTemplatePicker"
 import { mediaFileName, saveMediaFile } from "@/lib/save-media"
 import type {
   AspectRatio,
@@ -482,7 +482,7 @@ export function RecruitWorkspace() {
             <div className="field">
               <span className="field-head">
                 提示词
-                <RecruitBriefButton />
+                <RecruitPromptTemplatePicker onFill={setT2iPrompt} />
               </span>
               <textarea value={t2iPrompt} onChange={(event) => setT2iPrompt(event.target.value)} />
             </div>
@@ -606,7 +606,7 @@ export function RecruitWorkspace() {
               <div className="field">
                 <span className="field-head">
                   提示词
-                  {mode === "i2i" ? <RecruitBriefButton /> : null}
+                  {mode === "i2i" ? <RecruitPromptTemplatePicker onFill={setI2iPrompt} /> : null}
                 </span>
                 <textarea
                   value={mode === "i2i" ? i2iPrompt : i2vPrompt}
