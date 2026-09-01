@@ -291,3 +291,26 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod windows_nsis_hooks_tests {
+    #[test]
+    fn hooks_file_has_utf8_bom_and_legacy_names() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("windows/hooks.nsh");
+        let bytes = std::fs::read(&path).expect("windows/hooks.nsh");
+        assert!(
+            bytes.starts_with(&[0xEF, 0xBB, 0xBF]),
+            "NSIS Unicode needs a UTF-8 BOM so leftover Chinese product names parse"
+        );
+        let text = String::from_utf8_lossy(&bytes[3..]);
+        for name in ["小红书执行器", "R7工作台", "R7."] {
+            assert!(text.contains(name), "missing leftover identity {name}");
+        }
+        assert!(text.contains("NSIS_HOOK_PREINSTALL"));
+        assert!(text.contains("NSIS_HOOK_POSTINSTALL"));
+        assert!(
+            !text.contains("RmDir /r \"$APPDATA") && !text.contains("$LOCALAPPDATA\\${BUNDLEID}"),
+            "hooks must not wipe identifier-based app data"
+        );
+    }
+}

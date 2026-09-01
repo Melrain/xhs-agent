@@ -9,6 +9,18 @@ export type UpdateStatus =
   | { kind: 'installing'; version: string }
   | { kind: 'error'; message: string };
 
+/**
+ * Official updater docs: on Windows, `downloadAndInstall` / `install` already
+ * exit the process after launching the NSIS setup. Relaunch is only required
+ * on macOS / Linux. Calling `relaunch()` on Windows can restart the old exe
+ * while the installer is replacing files.
+ */
+export function shouldRelaunchAfterUpdaterInstall(
+  userAgent = typeof navigator === 'undefined' ? '' : navigator.userAgent,
+): boolean {
+  return !/windows/i.test(userAgent);
+}
+
 export async function checkAppUpdate(): Promise<Update | null> {
   return check();
 }
@@ -32,5 +44,7 @@ export async function installAppUpdate(
       onProgress(100);
     }
   });
-  await relaunch();
+  if (shouldRelaunchAfterUpdaterInstall()) {
+    await relaunch();
+  }
 }
