@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -27,6 +27,17 @@ const PROXY_ENV_KEYS: &[&str] = &[
     "all_proxy",
     "ftp_proxy",
 ];
+
+/// AppImage / 打包环境会把这些变量留给子进程，系统 Python 和 uv 工具环境会直接起不来。
+const PYTHON_ISOLATION_KEYS: &[&str] = &[
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "PYTHONSTARTUP",
+    "PYTHONEXECUTABLE",
+    "__PYVENV_LAUNCHER__",
+];
+
+const APPIMAGE_LIBRARY_KEYS: &[&str] = &["LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT"];
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -128,10 +139,7 @@ impl XhsRuntime {
     }
 
     pub fn list_notes_unlocked(&self) -> Result<Vec<XhsNoteView>, String> {
-        let envelope = run_envelope(
-            &["my-notes".into(), "--json".into()],
-            list_timeout_ms(),
-        )?;
+        let envelope = run_envelope(&["my-notes".into(), "--json".into()], list_timeout_ms())?;
         if let Some(error) = envelope_error(&envelope) {
             return Err(error);
         }
@@ -352,15 +360,78 @@ pub(crate) fn python_home_dir_from(
         .map(PathBuf::from)
 }
 
+fn env_key_matches(key: &str, expected: &str, windows: bool) -> bool {
+    if windows {
+        key.eq_ignore_ascii_case(expected)
+    } else {
+        key == expected
+    }
+}
+
+fn has_appimage_marker(vars: &[(String, String)]) -> bool {
+    vars.iter()
+        .any(|(key, value)| (key == "APPIMAGE" || key == "APPDIR") && !value.trim().is_empty())
+}
+
+fn is_blocked_child_env_key(key: &str, windows: bool, drop_appimage_libs: bool) -> bool {
+    if PYTHON_ISOLATION_KEYS
+        .iter()
+        .any(|item| env_key_matches(key, item, windows))
+    {
+        return true;
+    }
+    drop_appimage_libs
+        && APPIMAGE_LIBRARY_KEYS
+            .iter()
+            .any(|item| env_key_matches(key, item, windows))
+}
+
 fn candidate_bin_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     if let Some(home) = home_dir() {
         dirs.push(home.join(".local/bin"));
         dirs.push(home.join(".cargo/bin"));
+        dirs.push(home.join(".local/share/uv/tools/xiaohongshu-cli/bin"));
+        dirs.push(home.join(".local/share/uv/tools/xiaohongshu-cli/Scripts"));
         dirs.extend(python_user_bin_dirs(&home));
     }
+    if let Some(tool_bin) = std::env::var_os("UV_TOOL_BIN_DIR") {
+        dirs.push(PathBuf::from(tool_bin));
+    }
+    if let Some(xdg_bin) = std::env::var_os("XDG_BIN_HOME") {
+        dirs.push(PathBuf::from(xdg_bin));
+    }
     if let Some(local_app) = std::env::var_os("LOCALAPPDATA") {
-        dirs.push(PathBuf::from(local_app).join("uv").join("bin"));
+        let local_app = PathBuf::from(local_app);
+        dirs.push(local_app.join("uv").join("bin"));
+        dirs.push(
+            local_app
+                .join("uv")
+                .join("tools")
+                .join("xiaohongshu-cli")
+                .join("bin"),
+        );
+        dirs.push(
+            local_app
+                .join("uv")
+                .join("tools")
+                .join("xiaohongshu-cli")
+                .join("Scripts"),
+        );
+        dirs.push(local_app.join("Programs").join("Python").join("Launcher"));
+        let programs_python = local_app.join("Programs").join("Python");
+        if let Ok(entries) = std::fs::read_dir(&programs_python) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path.clone());
+                    let scripts = path.join("Scripts");
+                    if scripts.is_dir() {
+                        dirs.push(scripts);
+                    }
+                }
+            }
+        }
     }
     dirs.push(PathBuf::from("/opt/homebrew/bin"));
     dirs.push(PathBuf::from("/usr/local/bin"));
@@ -403,26 +474,44 @@ fn python_user_bin_dirs(home: &Path) -> Vec<PathBuf> {
 }
 
 pub(crate) fn sanitize_cli_env() -> Vec<(String, String)> {
-    let mut env: Vec<(String, String)> = std::env::vars()
+    let vars: Vec<(String, String)> = std::env::vars().collect();
+    let drop_appimage_libs = has_appimage_marker(&vars);
+    let extras = candidate_bin_dirs()
+        .into_iter()
+        .filter(|dir| dir.is_dir())
+        .collect();
+    sanitize_cli_env_from(vars, extras, cfg!(windows), drop_appimage_libs)
+}
+
+pub(crate) fn sanitize_cli_env_from(
+    vars: Vec<(String, String)>,
+    extra_bins: Vec<PathBuf>,
+    windows: bool,
+    drop_appimage_libs: bool,
+) -> Vec<(String, String)> {
+    let mut env: Vec<(String, String)> = vars
+        .into_iter()
         .filter(|(key, value)| {
-            if !PROXY_ENV_KEYS.contains(&key.as_str()) {
+            if is_blocked_child_env_key(key, windows, drop_appimage_libs) {
+                return false;
+            }
+            if !PROXY_ENV_KEYS
+                .iter()
+                .any(|item| env_key_matches(key, item, windows))
+            {
                 return true;
             }
             !value.to_ascii_lowercase().contains("socks")
         })
         .collect();
 
-    let extras: Vec<PathBuf> = candidate_bin_dirs()
-        .into_iter()
-        .filter(|dir| dir.is_dir())
-        .collect();
-    if !extras.is_empty() {
+    if !extra_bins.is_empty() {
         let current = env
             .iter()
-            .find(|(key, _)| key == "PATH")
+            .find(|(key, _)| env_key_matches(key, "PATH", windows))
             .map(|(_, value)| value.clone())
             .unwrap_or_default();
-        let mut parts: Vec<PathBuf> = extras;
+        let mut parts: Vec<PathBuf> = extra_bins;
         for dir in std::env::split_paths(&current) {
             if !dir.as_os_str().is_empty() && !parts.contains(&dir) {
                 parts.push(dir);
@@ -432,7 +521,10 @@ pub(crate) fn sanitize_cli_env() -> Vec<(String, String)> {
             .ok()
             .and_then(|value| value.into_string().ok());
         if let Some(merged) = merged {
-            if let Some((_, value)) = env.iter_mut().find(|(key, _)| key == "PATH") {
+            if let Some((_, value)) = env
+                .iter_mut()
+                .find(|(key, _)| env_key_matches(key, "PATH", windows))
+            {
                 *value = merged;
             } else {
                 env.push(("PATH".into(), merged));
@@ -441,6 +533,10 @@ pub(crate) fn sanitize_cli_env() -> Vec<(String, String)> {
     }
     force_python_utf8(&mut env);
     env
+}
+
+pub(crate) fn apply_child_env(command: &mut Command) -> &mut Command {
+    command.env_clear().envs(sanitize_cli_env())
 }
 
 /// Windows 默认控制台是 GBK。管道里的中文 NDJSON / `xhs --json` 必须按 UTF-8 读。
@@ -625,7 +721,11 @@ pub fn json_int(value: &Value) -> i64 {
         .unwrap_or(0)
 }
 
-pub(crate) fn run_cli(bin: &Path, args: &[&str], timeout_ms: u64) -> Result<(i32, String, String), String> {
+pub(crate) fn run_cli(
+    bin: &Path,
+    args: &[&str],
+    timeout_ms: u64,
+) -> Result<(i32, String, String), String> {
     run_cli_as(bin, args, timeout_ms, "xhs")
 }
 
@@ -635,11 +735,24 @@ pub(crate) fn run_cli_as(
     timeout_ms: u64,
     name: &str,
 ) -> Result<(i32, String, String), String> {
+    run_cli_as_with_env(bin, args, timeout_ms, name, &[])
+}
+
+pub(crate) fn run_cli_as_with_env(
+    bin: &Path,
+    args: &[&str],
+    timeout_ms: u64,
+    name: &str,
+    extra_env: &[(&str, &str)],
+) -> Result<(i32, String, String), String> {
     let mut command = Command::new(bin);
     configure_child(&mut command);
+    apply_child_env(&mut command);
+    for (key, value) in extra_env {
+        command.env(key, value);
+    }
     let mut child = command
         .args(args)
-        .envs(sanitize_cli_env())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -685,9 +798,9 @@ pub(crate) fn run_cli_as_progress(
 ) -> Result<(i32, String, String), String> {
     let mut command = Command::new(bin);
     configure_child(&mut command);
+    apply_child_env(&mut command);
     let mut child = command
         .args(args)
-        .envs(sanitize_cli_env())
         .env("PYTHONUNBUFFERED", "1")
         .env("PYTHONIOENCODING", "utf-8")
         .stdin(Stdio::null())
@@ -1193,7 +1306,71 @@ mod tests {
                 .map(|(_, value)| value.as_str()),
             Some("1")
         );
-        assert_eq!(env.iter().filter(|(key, _)| key == "PYTHONIOENCODING").count(), 1);
+        assert_eq!(
+            env.iter()
+                .filter(|(key, _)| key == "PYTHONIOENCODING")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn strips_appimage_python_home_from_child_env() {
+        let env = sanitize_cli_env_from(
+            vec![
+                ("HOME".into(), "/home/ada".into()),
+                ("PATH".into(), "/usr/bin".into()),
+                ("PYTHONHOME".into(), "/tmp/.mount_R7_0.1abc/usr/".into()),
+                (
+                    "PYTHONPATH".into(),
+                    "/tmp/.mount_R7_0.1abc/usr/share/pyshared/:".into(),
+                ),
+                ("APPIMAGE".into(), "/opt/R7.AppImage".into()),
+                (
+                    "LD_LIBRARY_PATH".into(),
+                    "/tmp/.mount_R7_0.1abc/usr/lib".into(),
+                ),
+                ("HTTPS_PROXY".into(), "socks://127.0.0.1:7890".into()),
+            ],
+            Vec::new(),
+            false,
+            true,
+        );
+        let keys: Vec<_> = env.iter().map(|(key, _)| key.as_str()).collect();
+        assert!(keys.contains(&"HOME"));
+        assert!(!keys.contains(&"PYTHONHOME"));
+        assert!(!keys.contains(&"PYTHONPATH"));
+        assert!(!keys.contains(&"LD_LIBRARY_PATH"));
+        assert!(!keys.contains(&"HTTPS_PROXY"));
+        assert_eq!(
+            env.iter()
+                .find(|(key, _)| key == "PYTHONUTF8")
+                .map(|(_, value)| value.as_str()),
+            Some("1")
+        );
+    }
+
+    #[test]
+    fn windows_path_merge_is_case_insensitive() {
+        let env = sanitize_cli_env_from(
+            vec![
+                ("Path".into(), r"C:\Windows\System32".into()),
+                ("PYTHONHOME".into(), r"C:\broken-python".into()),
+            ],
+            vec![PathBuf::from(r"C:\Users\ada\.local\bin")],
+            true,
+            false,
+        );
+        assert!(!env
+            .iter()
+            .any(|(key, _)| key.eq_ignore_ascii_case("PYTHONHOME")));
+        let path = env
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case("PATH"))
+            .map(|(_, value)| value.as_str())
+            .unwrap_or("");
+        assert!(path.contains(r"C:\Users\ada\.local\bin"));
+        assert!(path.contains(r"C:\Windows\System32"));
     }
 
     #[test]

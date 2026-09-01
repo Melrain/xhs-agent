@@ -1,11 +1,18 @@
 use crate::xhs::{
     resolve_companion_python, resolve_named_bin, resolve_xhs_bin, run_cli_as, run_cli_as_progress,
+    run_cli_as_with_env,
 };
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-const INSTALL_TIMEOUT_MS: u64 = 180_000;
-const BOOTSTRAP_TIMEOUT_MS: u64 = 120_000;
+const INSTALL_TIMEOUT_MS: u64 = 300_000;
+const BOOTSTRAP_TIMEOUT_MS: u64 = 180_000;
+const PYPI_MIRRORS: &[&str] = &[
+    "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "https://mirrors.aliyun.com/pypi/simple",
+];
+const UV_PYTHON_MIRROR: &str =
+    "https://ghfast.top/https://github.com/astral-sh/python-build-standalone/releases/download";
 const CAMOUFOX_FETCH_TIMEOUT_MS: u64 = 900_000;
 const CAMOUFOX_FETCH_PY: &str = include_str!("../resources/camoufox_fetch.py");
 
@@ -107,7 +114,12 @@ pub fn ensure_runtime(mut on_progress: impl FnMut(&SetupReport)) -> SetupReport 
     };
 
     if !facts.camoufox_pkg {
-        set_step(&mut report, "camoufox-pkg", "running", "正在安装 camoufox 包…");
+        set_step(
+            &mut report,
+            "camoufox-pkg",
+            "running",
+            "正在安装 camoufox 包…",
+        );
         on_progress(&report);
         if let Err(error) = install_python_package(&python, "camoufox") {
             set_step(&mut report, "camoufox-pkg", "error", &error);
@@ -171,7 +183,12 @@ pub fn ensure_runtime(mut on_progress: impl FnMut(&SetupReport)) -> SetupReport 
         );
         match fetch {
             Ok((0, _, _)) if camoufox_browser_ready(&python) => {
-                set_step(&mut report, "camoufox-browser", "done", "Camoufox 浏览器已就绪");
+                set_step(
+                    &mut report,
+                    "camoufox-browser",
+                    "done",
+                    "Camoufox 浏览器已就绪",
+                );
             }
             Ok((code, stdout, stderr)) => {
                 let tail = [stderr.trim(), stdout.trim()]
@@ -346,8 +363,7 @@ fn write_camoufox_fetch_script() -> Result<PathBuf, String> {
 }
 
 fn camoufox_browser_ready(python: &Path) -> bool {
-    let Ok((code, stdout, _)) =
-        run_cli_as(python, &["-c", PY_CHECK_BROWSER], 20_000, "camoufox")
+    let Ok((code, stdout, _)) = run_cli_as(python, &["-c", PY_CHECK_BROWSER], 20_000, "camoufox")
     else {
         return false;
     };
@@ -371,40 +387,156 @@ pub fn manual_install_help() -> String {
 }
 
 fn install_python_package(python: &Path, package: &str) -> Result<(), String> {
-    let attempts: [&[&str]; 2] = [
-        &["-m", "pip", "install", package],
-        &["-m", "pip", "install", "--user", package],
-    ];
+    let attempts = python_package_attempts(python, package, resolve_named_bin("uv"));
     let mut last_error = format!("安装 {package} 失败");
-    for args in attempts {
-        match run_cli_as(python, args, INSTALL_TIMEOUT_MS, "pip") {
+    for (index, (bin, args, name)) in attempts.iter().enumerate() {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        match run_cli_as(bin, &arg_refs, INSTALL_TIMEOUT_MS, name) {
             Ok((0, _, _)) => return Ok(()),
             Ok((code, stdout, stderr)) => {
-                let tail = [stderr.trim(), stdout.trim()]
-                    .into_iter()
-                    .find(|text| !text.is_empty())
-                    .unwrap_or("没有输出");
-                let cut: String = tail.chars().take(240).collect();
-                last_error = format!("安装 {package} 失败（退出码 {code}）：{cut}");
+                last_error =
+                    format_command_error(&format!("安装 {package}"), code, &stdout, &stderr);
             }
             Err(error) => last_error = format!("安装 {package} 失败：{error}"),
         }
+        let has_more = index + 1 < attempts.len();
+        if !has_more {
+            break;
+        }
+        if looks_like_network_error(&last_error) {
+            continue;
+        }
+        break;
     }
     Err(last_error)
 }
 
+fn python_package_attempts(
+    python: &Path,
+    package: &str,
+    uv: Option<PathBuf>,
+) -> Vec<(PathBuf, Vec<String>, &'static str)> {
+    let python_arg = python.to_string_lossy().into_owned();
+    let mut attempts = Vec::new();
+    if let Some(uv) = uv {
+        attempts.push((
+            uv.clone(),
+            vec![
+                "pip".into(),
+                "install".into(),
+                "--python".into(),
+                python_arg.clone(),
+                package.into(),
+            ],
+            "uv",
+        ));
+        for mirror in PYPI_MIRRORS {
+            attempts.push((
+                uv.clone(),
+                vec![
+                    "pip".into(),
+                    "install".into(),
+                    "--python".into(),
+                    python_arg.clone(),
+                    "--default-index".into(),
+                    (*mirror).into(),
+                    package.into(),
+                ],
+                "uv",
+            ));
+        }
+    }
+    attempts.push((
+        python.to_path_buf(),
+        vec!["-m".into(), "pip".into(), "install".into(), package.into()],
+        "pip",
+    ));
+    attempts.push((
+        python.to_path_buf(),
+        vec![
+            "-m".into(),
+            "pip".into(),
+            "install".into(),
+            "--user".into(),
+            package.into(),
+        ],
+        "pip",
+    ));
+    for mirror in PYPI_MIRRORS {
+        attempts.push((
+            python.to_path_buf(),
+            vec![
+                "-m".into(),
+                "pip".into(),
+                "install".into(),
+                "-i".into(),
+                (*mirror).into(),
+                package.into(),
+            ],
+            "pip",
+        ));
+    }
+    attempts
+}
+
+fn format_command_error(action: &str, code: i32, stdout: &str, stderr: &str) -> String {
+    let tail = [stderr.trim(), stdout.trim()]
+        .into_iter()
+        .find(|text| !text.is_empty())
+        .unwrap_or("没有输出");
+    let cut: String = tail.chars().take(240).collect();
+    format!("{action} 失败（退出码 {code}）：{cut}")
+}
+
+fn looks_like_network_error(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    [
+        "timed out",
+        "timeout",
+        "connection",
+        "network",
+        "ssl",
+        "certificate",
+        "failed to fetch",
+        "failed to download",
+        "could not resolve",
+        "unreachable",
+        "403",
+        "429",
+        "超时",
+        "连接失败",
+        "无法连接",
+        "无法解析",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+fn looks_like_missing_python(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    [
+        "no python",
+        "python was not found",
+        "couldn't find a valid python",
+        "could not find a valid python",
+        "no interpreter",
+        "managed python",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
 fn clean_progress_line(line: &str) -> String {
-    let cleaned: String = line
-        .chars()
-        .filter(|ch| !ch.is_control())
-        .collect();
+    let cleaned: String = line.chars().filter(|ch| !ch.is_control()).collect();
     cleaned.trim().chars().take(80).collect()
 }
 
 fn install_xiaohongshu_cli() -> Result<String, String> {
     let installers = all_installers();
     let mut errors = Vec::new();
-    let had_uv = installers.iter().any(|item| matches!(item, Installer::Uv(_)));
+    let had_uv = installers
+        .iter()
+        .any(|item| matches!(item, Installer::Uv(_)));
 
     for installer in &installers {
         match run_installer(installer) {
@@ -436,6 +568,7 @@ enum Installer {
     Uv(PathBuf),
     Pipx(PathBuf),
     Pip(PathBuf),
+    PyLauncher(PathBuf),
 }
 
 fn all_installers() -> Vec<Installer> {
@@ -449,45 +582,112 @@ fn all_installers() -> Vec<Installer> {
     if let Some(python) = resolve_named_bin("python3").or_else(|| resolve_named_bin("python")) {
         installers.push(Installer::Pip(python));
     }
+    if cfg!(windows) {
+        if let Some(py) = resolve_named_bin("py") {
+            installers.push(Installer::PyLauncher(py));
+        }
+    }
     installers
 }
 
-fn run_installer(installer: &Installer) -> Result<String, String> {
-    let (how, bin, args) = match installer {
-        Installer::Uv(bin) => (
-            "uv",
-            bin.clone(),
-            vec!["tool".into(), "install".into(), "xiaohongshu-cli".into()],
-        ),
-        Installer::Pipx(bin) => (
-            "pipx",
+fn installer_attempts(installer: &Installer) -> Vec<(String, PathBuf, Vec<String>)> {
+    match installer {
+        Installer::Uv(bin) => {
+            let mut attempts = vec![(
+                "uv".into(),
+                bin.clone(),
+                vec!["tool".into(), "install".into(), "xiaohongshu-cli".into()],
+            )];
+            for mirror in PYPI_MIRRORS {
+                attempts.push((
+                    "uv".into(),
+                    bin.clone(),
+                    vec![
+                        "tool".into(),
+                        "install".into(),
+                        "--default-index".into(),
+                        (*mirror).into(),
+                        "xiaohongshu-cli".into(),
+                    ],
+                ));
+            }
+            attempts.push((
+                "uv".into(),
+                bin.clone(),
+                vec![
+                    "tool".into(),
+                    "install".into(),
+                    "--python".into(),
+                    "3.11".into(),
+                    "xiaohongshu-cli".into(),
+                ],
+            ));
+            attempts
+        }
+        Installer::Pipx(bin) => vec![(
+            "pipx".into(),
             bin.clone(),
             vec!["install".into(), "xiaohongshu-cli".into()],
-        ),
-        Installer::Pip(bin) => (
-            "pip",
-            bin.clone(),
-            vec![
-                "-m".into(),
-                "pip".into(),
-                "install".into(),
-                "--user".into(),
-                "xiaohongshu-cli".into(),
-            ],
-        ),
-    };
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let (code, stdout, stderr) = run_cli_as(&bin, &arg_refs, INSTALL_TIMEOUT_MS, how)
-        .map_err(|error| format!("用 {how} 安装 xiaohongshu-cli 失败：{error}"))?;
-    if code == 0 {
-        return Ok(how.into());
+        )],
+        Installer::Pip(bin) => pip_user_attempts("pip", bin, &["-m", "pip", "install", "--user"]),
+        Installer::PyLauncher(bin) => {
+            pip_user_attempts("py", bin, &["-3", "-m", "pip", "install", "--user"])
+        }
     }
-    let tail = [stderr.trim(), stdout.trim()]
-        .into_iter()
-        .find(|text| !text.is_empty())
-        .unwrap_or("没有输出");
-    let cut: String = tail.chars().take(240).collect();
-    Err(format!("用 {how} 安装失败（退出码 {code}）：{cut}"))
+}
+
+fn pip_user_attempts(
+    how: &str,
+    bin: &Path,
+    prefix: &[&str],
+) -> Vec<(String, PathBuf, Vec<String>)> {
+    let mut attempts = vec![(
+        how.into(),
+        bin.to_path_buf(),
+        prefix
+            .iter()
+            .map(|item| (*item).to_string())
+            .chain(std::iter::once("xiaohongshu-cli".into()))
+            .collect(),
+    )];
+    for mirror in PYPI_MIRRORS {
+        let mut args: Vec<String> = prefix.iter().map(|item| (*item).to_string()).collect();
+        args.push("-i".into());
+        args.push((*mirror).into());
+        args.push("xiaohongshu-cli".into());
+        attempts.push((how.into(), bin.to_path_buf(), args));
+    }
+    attempts
+}
+
+fn run_installer(installer: &Installer) -> Result<String, String> {
+    let attempts = installer_attempts(installer);
+    let mut last_error = "安装 xiaohongshu-cli 失败".to_string();
+    for (index, (how, bin, args)) in attempts.iter().enumerate() {
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let extra_env: &[(&str, &str)] =
+            if how == "uv" && args.iter().any(|item| item == "--python") {
+                &[("UV_PYTHON_INSTALL_MIRROR", UV_PYTHON_MIRROR)]
+            } else {
+                &[]
+            };
+        let result = run_cli_as_with_env(bin, &arg_refs, INSTALL_TIMEOUT_MS, how, extra_env)
+            .map_err(|error| format!("用 {how} 安装 xiaohongshu-cli 失败：{error}"));
+        match result {
+            Ok((0, _, _)) => return Ok(how.clone()),
+            Ok((code, stdout, stderr)) => {
+                last_error =
+                    format_command_error(&format!("用 {how} 安装"), code, &stdout, &stderr);
+            }
+            Err(error) => last_error = error,
+        }
+        let should_retry = index + 1 < attempts.len()
+            && (looks_like_network_error(&last_error) || looks_like_missing_python(&last_error));
+        if !should_retry {
+            break;
+        }
+    }
+    Err(last_error)
 }
 
 fn bootstrap_uv() -> Option<PathBuf> {
@@ -572,5 +772,45 @@ mod tests {
         assert!(CAMOUFOX_FETCH_PY.contains("ghfast.top"));
         assert!(CAMOUFOX_FETCH_PY.contains("下载中"));
         assert!(!CAMOUFOX_FETCH_PY.contains("camoufox path"));
+    }
+
+    #[test]
+    fn python_package_install_prefers_uv_pip() {
+        let python = PathBuf::from("/opt/uv/tools/xiaohongshu-cli/bin/python3");
+        let attempts =
+            python_package_attempts(&python, "camoufox", Some(PathBuf::from("/usr/bin/uv")));
+        assert!(attempts.iter().any(|(_, args, name)| *name == "uv"
+            && args
+                .windows(2)
+                .any(|pair| pair == ["--python", python.to_str().unwrap()])));
+        assert!(attempts.iter().any(|(_, args, _)| {
+            args.iter()
+                .any(|item| item.contains("pypi.tuna.tsinghua.edu.cn"))
+        }));
+    }
+
+    #[test]
+    fn uv_cli_install_has_mirror_and_python_fallback() {
+        let attempts = installer_attempts(&Installer::Uv(PathBuf::from("/usr/bin/uv")));
+        assert!(attempts
+            .iter()
+            .any(|(_, _, args)| args == &["tool", "install", "xiaohongshu-cli"]));
+        assert!(attempts.iter().any(|(_, _, args)| {
+            args.contains(&"--default-index".to_string())
+                && args.iter().any(|item| item.contains("tuna.tsinghua"))
+        }));
+        assert!(attempts
+            .iter()
+            .any(|(_, _, args)| args.contains(&"--python".to_string())
+                && args.contains(&"3.11".to_string())));
+    }
+
+    #[test]
+    fn network_error_detector_covers_common_failures() {
+        assert!(looks_like_network_error(
+            "Failed to fetch: connection timed out"
+        ));
+        assert!(looks_like_missing_python("No Python interpreters found"));
+        assert!(!looks_like_network_error("package not found"));
     }
 }

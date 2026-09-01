@@ -96,6 +96,7 @@ impl XhsLogin {
             .arg(&helper)
             .arg("--timeout-s")
             .arg(&timeout_s)
+            .env_clear()
             .envs(env.drain(..))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -379,7 +380,10 @@ fn assert_desktop(env: &[(String, String)]) -> Result<(), String> {
     if has_display {
         return Ok(());
     }
-    Err("未检测到桌面（DISPLAY / WAYLAND_DISPLAY）。请在本机图形会话里启动，或设置 XHS_DISPLAY=:0".into())
+    Err(
+        "未检测到桌面（DISPLAY / WAYLAND_DISPLAY）。请在本机图形会话里启动，或设置 XHS_DISPLAY=:0"
+            .into(),
+    )
 }
 
 fn resolve_helper_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -426,7 +430,9 @@ fn terminate_pid(pid: u32) {
     if cfg!(windows) {
         let mut command = Command::new("taskkill");
         configure_child(&mut command);
-        let _ = command.args(["/PID", &pid.to_string(), "/T", "/F"]).status();
+        let _ = command
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .status();
         return;
     }
     let _ = Command::new("kill")
@@ -573,8 +579,10 @@ pub fn parse_login_output(line: &str) -> Option<QrEvent> {
         || lower.contains("qr code login timed out")
         || lower.contains("failed to load xiaohongshu")
         || lower.contains("browser-assisted qr login");
-    let severe =
-        lower.contains("failed") || lower.contains("timed out") || lower.contains("unable") || lower.contains("missing");
+    let severe = lower.contains("failed")
+        || lower.contains("timed out")
+        || lower.contains("unable")
+        || lower.contains("missing");
     if failed && severe && !lower.contains("starting browser-assisted") {
         return Some(QrEvent::Error {
             message: trimmed.into(),
@@ -647,7 +655,11 @@ pub fn expire_if_needed(state: XhsQrSessionView, now_ms: i64) -> XhsQrSessionVie
 }
 
 fn message_from_value(value: Option<&Value>, fallback: &str) -> Option<String> {
-    match value.and_then(Value::as_str).map(str::trim).filter(|text| !text.is_empty()) {
+    match value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+    {
         Some(text) => Some(text.to_string()),
         None if fallback.is_empty() => None,
         None => Some(fallback.to_string()),
@@ -688,7 +700,10 @@ mod tests {
 
     #[test]
     fn reads_scanned_confirmed_and_error() {
-        assert_eq!(parse_qr_event(r#"{"event":"scanned"}"#), Some(QrEvent::Scanned));
+        assert_eq!(
+            parse_qr_event(r#"{"event":"scanned"}"#),
+            Some(QrEvent::Scanned)
+        );
         assert_eq!(
             parse_qr_event(r#"{"event":"confirming"}"#),
             Some(QrEvent::Confirming)
@@ -776,7 +791,10 @@ mod tests {
         );
         assert_eq!(with_qr.phase, "waiting");
         assert_eq!(with_qr.qr_url.as_deref(), Some("https://q"));
-        assert_eq!(apply_qr_event(with_qr.clone(), QrEvent::Scanned).phase, "scanned");
+        assert_eq!(
+            apply_qr_event(with_qr.clone(), QrEvent::Scanned).phase,
+            "scanned"
+        );
         assert_eq!(
             apply_qr_event(with_qr.clone(), QrEvent::Confirming).phase,
             "confirming"
@@ -896,8 +914,14 @@ mod tests {
             .filter(|line| !line.is_empty())
             .map(decode_process_line)
             .collect();
-        assert_eq!(lines.last().map(String::as_str), Some(r#"{"event":"confirmed"}"#));
-        assert_eq!(parse_login_output(lines.last().unwrap()), Some(QrEvent::Confirmed));
+        assert_eq!(
+            lines.last().map(String::as_str),
+            Some(r#"{"event":"confirmed"}"#)
+        );
+        assert_eq!(
+            parse_login_output(lines.last().unwrap()),
+            Some(QrEvent::Confirmed)
+        );
     }
 
     #[test]
@@ -906,8 +930,14 @@ mod tests {
             phase_after_helper_exit("confirming", Some(0), true),
             Some("confirmed")
         );
-        assert_eq!(phase_after_helper_exit("scanned", Some(0), true), Some("confirmed"));
-        assert_eq!(phase_after_helper_exit("waiting", Some(0), true), Some("confirmed"));
+        assert_eq!(
+            phase_after_helper_exit("scanned", Some(0), true),
+            Some("confirmed")
+        );
+        assert_eq!(
+            phase_after_helper_exit("waiting", Some(0), true),
+            Some("confirmed")
+        );
         assert_eq!(phase_after_helper_exit("waiting", Some(0), false), None);
         assert_eq!(phase_after_helper_exit("confirming", Some(1), true), None);
     }
