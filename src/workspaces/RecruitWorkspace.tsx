@@ -22,6 +22,7 @@ import {
   useRecruitImageJobs,
   type RecruitImageMode,
 } from "@/hooks/use-recruit-tasks"
+import { RecruitBriefButton } from "@/components/RecruitBriefButton"
 import { mediaFileName, saveMediaFile } from "@/lib/save-media"
 import type {
   AspectRatio,
@@ -122,10 +123,11 @@ export function RecruitWorkspace() {
       })
     : overlayError
   const busy = imageBusy || overlayBusy
-  const status = busy
-    ? "loading"
-    : items.length > 0 || (mode === "text-overlay" && overlaySource)
-      ? "ready"
+  const hasCanvasItem = items.length > 0 || (mode === "text-overlay" && Boolean(overlaySource))
+  const status = hasCanvasItem
+    ? "ready"
+    : busy
+      ? "loading"
       : imageError
         ? "error"
         : "empty"
@@ -260,6 +262,7 @@ export function RecruitWorkspace() {
       prompt,
     }))
     setItemsByMode((current) => ({ ...current, [requestMode]: nextItems }))
+    setSelectedCanvasId(nextItems[0]?.id)
   }
 
   function addLocalFile(file: File, target: Mode) {
@@ -277,6 +280,19 @@ export function RecruitWorkspace() {
   }
 
   function applySource(asset: Asset, target = mode) {
+    const needsImage = target === "i2i" || target === "text-overlay" || target === "i2v"
+    if (isRecruitImageMode(target)) {
+      const job = imageJobs.jobFor(target).data
+      if (job?.status === "failed") {
+        setDismissedFailed((current) => ({ ...current, [target]: job.taskId }))
+      }
+    }
+    setSelectedCanvasId(asset.id)
+    setItemsByMode((current) => ({
+      ...current,
+      [target]: [{ id: asset.id, kind: asset.kind, url: asset.url, s3Key: asset.s3Key, prompt: asset.prompt }],
+    }))
+    if (needsImage && asset.kind !== "image") return
     if (target === "i2i") setI2iSource(asset)
     if (target === "text-overlay") {
       setOverlaySource(asset)
@@ -284,10 +300,6 @@ export function RecruitWorkspace() {
       setOverlayError(undefined)
     }
     if (target === "i2v") setI2vSource(asset)
-    setItemsByMode((current) => ({
-      ...current,
-      [target]: [{ id: asset.id, kind: asset.kind, url: asset.url, s3Key: asset.s3Key, prompt: asset.prompt }],
-    }))
   }
 
   function chainTo(next: Mode, item: CanvasItem) {
@@ -467,10 +479,13 @@ export function RecruitWorkspace() {
         ) : null}
         {mode === "t2i" ? (
           <>
-            <label className="field">
-              <span>提示词</span>
+            <div className="field">
+              <span className="field-head">
+                提示词
+                <RecruitBriefButton />
+              </span>
               <textarea value={t2iPrompt} onChange={(event) => setT2iPrompt(event.target.value)} />
-            </label>
+            </div>
             <div className="row">
               <label className="field">
                 <span>数量</span>
@@ -588,15 +603,18 @@ export function RecruitWorkspace() {
                 </div>
               </>
             ) : (
-              <label className="field">
-                <span>提示词</span>
+              <div className="field">
+                <span className="field-head">
+                  提示词
+                  {mode === "i2i" ? <RecruitBriefButton /> : null}
+                </span>
                 <textarea
                   value={mode === "i2i" ? i2iPrompt : i2vPrompt}
                   onChange={(event) =>
                     mode === "i2i" ? setI2iPrompt(event.target.value) : setI2vPrompt(event.target.value)
                   }
                 />
-              </label>
+              </div>
             )}
           </>
         ) : null}
@@ -674,6 +692,9 @@ export function RecruitWorkspace() {
           <div>
             <p className="section-label">画布</p>
             {displayItem?.prompt ? <p className="canvas-caption">{displayItem.prompt}</p> : null}
+            {busy && status === "ready" ? (
+              <p className="canvas-caption">{mode === "text-overlay" ? "正在合成文字…" : "正在生成…"} {elapsed}s</p>
+            ) : null}
             {imageError && status === "ready" ? <p className="canvas-caption error">{imageError}</p> : null}
             {saveHint ? <p className="canvas-caption">{saveHint}</p> : null}
           </div>
@@ -763,7 +784,7 @@ export function RecruitWorkspace() {
             <button
               key={asset.id}
               type="button"
-              className="asset-item"
+              className={asset.id === selectedCanvasId ? "asset-item active" : "asset-item"}
               onClick={() => applySource(asset)}
             >
               {asset.kind === "video" ? (
@@ -795,17 +816,19 @@ export function RecruitWorkspace() {
 function CanvasPreview({ item }: { item: CanvasItem }) {
   return (
     <div className="canvas-preview">
-      {item.kind === "video" ? (
-        <video
-          className="canvas-media"
-          src={item.url}
-          controls
-          onClick={(event) => event.stopPropagation()}
-        />
-      ) : (
-        <img className="canvas-media" src={item.url} alt="" />
-      )}
-      {item.overlay ? <OverlayLayer overlay={item.overlay} /> : null}
+      <div className="canvas-frame">
+        {item.kind === "video" ? (
+          <video
+            className="canvas-media"
+            src={item.url}
+            controls
+            onClick={(event) => event.stopPropagation()}
+          />
+        ) : (
+          <img className="canvas-media" src={item.url} alt="" />
+        )}
+        {item.overlay ? <OverlayLayer overlay={item.overlay} /> : null}
+      </div>
     </div>
   )
 }
