@@ -513,19 +513,32 @@ export function RecruitWorkspace() {
         ) : null}
         {mode === "i2i" || mode === "i2v" || mode === "text-overlay" ? (
           <>
-            <ImageDrop
-              source={currentSource}
-              onFile={(file) => addLocalFile(file, mode)}
-              onClear={() => {
-                if (mode === "i2i") setI2iSource(null)
-                if (mode === "text-overlay") {
-                  setOverlaySource(null)
-                  setOverlayPinned(false)
-                  setOverlayError(undefined)
-                }
-                if (mode === "i2v") setI2vSource(null)
-              }}
-            />
+            {mode === "i2i" ? (
+              <div className="field">
+                <span className="field-head">
+                  输入图
+                  <RecruitPromptTemplatePicker onFillImage={(file) => addLocalFile(file, "i2i")} />
+                </span>
+                <ImageDrop
+                  source={currentSource}
+                  onFile={(file) => addLocalFile(file, mode)}
+                  onClear={() => setI2iSource(null)}
+                />
+              </div>
+            ) : (
+              <ImageDrop
+                source={currentSource}
+                onFile={(file) => addLocalFile(file, mode)}
+                onClear={() => {
+                  if (mode === "text-overlay") {
+                    setOverlaySource(null)
+                    setOverlayPinned(false)
+                    setOverlayError(undefined)
+                  }
+                  if (mode === "i2v") setI2vSource(null)
+                }}
+              />
+            )}
             {mode === "text-overlay" ? (
               <>
                 <label className="field">
@@ -607,7 +620,6 @@ export function RecruitWorkspace() {
               <div className="field">
                 <span className="field-head">
                   提示词
-                  {mode === "i2i" ? <RecruitPromptTemplatePicker onFill={setI2iPrompt} /> : null}
                 </span>
                 <textarea
                   value={mode === "i2i" ? i2iPrompt : i2vPrompt}

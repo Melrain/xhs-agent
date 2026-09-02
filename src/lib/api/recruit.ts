@@ -100,6 +100,14 @@ export async function fetchStudioObject(s3Key: string, options?: { signal?: Abor
   })
 }
 
+export async function fetchTemplatePreview(s3Key: string, options?: { signal?: AbortSignal }) {
+  const query = `s3Key=${encodeURIComponent(s3Key)}`
+  return backendFetchBlob(`/api/backend/internal/media/template-preview?${query}`, {
+    timeoutMs: 60_000,
+    signal: options?.signal,
+  })
+}
+
 export async function loadOverlaySource(
   source: { url: string; s3Key?: string },
   options?: { signal?: AbortSignal },

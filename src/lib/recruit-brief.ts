@@ -44,6 +44,44 @@ export const RECRUIT_NOTES = [
   "宣传口径可用，不要写成官方统计或已核实排名。",
 ] as const
 
+export type RecruitFactLabel = (typeof RECRUIT_FACTS)[number]["label"]
+
+export function recruitFact(label: RecruitFactLabel) {
+  const item = RECRUIT_FACTS.find((fact) => fact.label === label)
+  if (!item) throw new Error(`招聘简报缺少事实：${label}`)
+  return item.value
+}
+
+/** 出图用 ASCII 连字符，避免 en-dash 被画成怪符号。 */
+export function asciiDash(value: string) {
+  return value.replace(/[–—]/g, "-")
+}
+
+/** 风格海报共用文案。数字和卖点只来自已确认事实。 */
+export function recruitPosterCopy() {
+  const payAmount = asciiDash(recruitFact("无责保底"))
+  const incomeAmount = recruitFact("综合收入")
+  return {
+    brand: recruitFact("品牌"),
+    tag: RECRUIT_SLOGANS[2],
+    hq: `${recruitFact("总部")}总部`,
+    site: `${recruitFact("南昌基地")}${recruitFact("业务")}`,
+    loc: `${recruitFact("总部")}总部 · 南昌${recruitFact("南昌基地")}基地`,
+    rooms: recruitFact("场地"),
+    team: `${recruitFact("团队")}团队`,
+    job: "招聘主播",
+    payAmount,
+    incomeAmount,
+    pay: `无责保底 ${payAmount}`,
+    income: `综合收入 ${incomeAmount}`,
+    perks: recruitFact("入职配套"),
+    train: recruitFact("培训"),
+    subsidy: `练舞补贴${recruitFact("练舞补贴")}`,
+    sloganA: RECRUIT_SLOGANS[0],
+    sloganB: RECRUIT_SLOGANS[1],
+  }
+}
+
 export function recruitBriefPlaintext() {
   const facts = RECRUIT_FACTS.map((item) => `${item.label}：${item.value}`).join("\n")
   const slogans = RECRUIT_SLOGANS.map((item) => `- ${item}`).join("\n")

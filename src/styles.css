@@ -849,6 +849,10 @@ select {
   box-shadow: 0 16px 48px rgb(0 0 0 / 18%);
 }
 
+.brief-card-wide {
+  width: min(640px, 100%);
+}
+
 .brief-head {
   display: flex;
   align-items: flex-start;
@@ -953,6 +957,60 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.brief-template-list-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.brief-template-list.brief-template-list-preview button {
+  gap: 6px;
+  padding: 8px;
+}
+
+.brief-template-thumb,
+.brief-preview-shot {
+  display: block;
+  background: var(--bg-soft);
+}
+
+.brief-template-thumb.is-pending,
+.brief-preview-shot.is-pending {
+  background: color-mix(in srgb, var(--bg-soft) 80%, var(--line));
+}
+
+.brief-template-thumb.is-failed,
+.brief-preview-shot.is-failed {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.brief-template-thumb {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.brief-preview-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 0 10px;
+}
+
+.brief-preview-shot {
+  height: 196px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 8px;
+  flex: 0 0 auto;
 }
 
 .brief-template-list button {
