@@ -1,3 +1,5 @@
+import { clearFilmClientState } from "@/lib/film-client-state"
+
 const ACCESS_KEY = "xhs.accessToken"
 const REFRESH_KEY = "xhs.refreshToken"
 const USER_KEY = "xhs.user"
@@ -104,6 +106,7 @@ export function clearTokens() {
   deleteStorage(ACCESS_KEY)
   deleteStorage(REFRESH_KEY)
   deleteStorage(USER_KEY)
+  clearFilmClientState()
   emitAuthStorage()
 }
 

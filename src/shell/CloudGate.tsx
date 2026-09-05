@@ -49,7 +49,7 @@ export function CloudGate({
       <div className="login-card">
         <p className="section-label">云端工作台</p>
         <h2>{mode === "login" ? "登录 R7" : "注册 R7"}</h2>
-        <p className="lead">招聘和妆造走线上后端。小红书管理不用登这个号。</p>
+        <p className="lead">招聘、妆造、笔记和影片走线上后端。小红书管理不用登这个号。</p>
         <div className="mode-switch">
           <button
             type="button"
