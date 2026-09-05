@@ -12,7 +12,7 @@ import {
   createFilmCard,
   DEFAULT_BRIEF_POSITION,
   visibleFilmCards,
-  type FilmCardNode,
+  type FilmCardNode as FilmCardFlowNode,
 } from "@/lib/film-card"
 import { readFilmLayout } from "@/lib/film-client-state"
 import { useFilmStore } from "@/lib/film-store"
@@ -62,7 +62,7 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
     return visibleFilmCards([...briefCard, ...activeNotes], activeHidden)
   }, [activeHidden, activeLayouts.brief, activeNotes, project?.brief, project?.id])
 
-  const [nodes, setNodes] = useState<FilmCardNode[]>(() => cardsToNodes(cards))
+  const [nodes, setNodes] = useState<FilmCardFlowNode[]>(() => cardsToNodes(cards))
   const [menu, setMenu] = useState<FilmPaneMenuState | null>(null)
 
   useLayoutEffect(() => {
@@ -90,7 +90,7 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
     setNodes(cardsToNodes(cards))
   }, [cards])
 
-  function onNodesChange(changes: NodeChange<FilmCardNode>[]) {
+  function onNodesChange(changes: NodeChange<FilmCardFlowNode>[]) {
     setNodes((current) => applyNodeChanges(changes, current))
   }
 
