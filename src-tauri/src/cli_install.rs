@@ -1,6 +1,6 @@
 use crate::xhs::{
-    resolve_companion_python, resolve_named_bin, resolve_xhs_bin, run_cli_as, run_cli_as_progress,
-    run_cli_as_with_env,
+    python_has_module, resolve_companion_python, resolve_named_bin, resolve_xhs_bin, run_cli_as,
+    run_cli_as_progress, run_cli_as_with_env,
 };
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -249,7 +249,7 @@ fn collect_facts() -> RuntimeFacts {
             || resolve_named_bin("python3").is_some()
             || resolve_named_bin("python").is_some()
             || python.is_some(),
-        cli: resolve_xhs_bin().is_some(),
+        cli: resolve_xhs_bin().is_some() && python.is_some(),
         camoufox_pkg,
         playwright,
         camoufox_browser,
@@ -371,10 +371,7 @@ fn camoufox_browser_ready(python: &Path) -> bool {
 }
 
 fn module_present(python: &Path, module: &str) -> bool {
-    let script = format!("import {module}");
-    run_cli_as(python, &["-c", &script], 15_000, "python")
-        .ok()
-        .is_some_and(|(code, _, _)| code == 0)
+    python_has_module(python, module)
 }
 
 pub fn manual_install_help() -> String {
@@ -531,6 +528,18 @@ fn clean_progress_line(line: &str) -> String {
     cleaned.trim().chars().take(80).collect()
 }
 
+fn xhs_cli_ready() -> bool {
+    resolve_xhs_bin().is_some() && resolve_companion_python().is_ok()
+}
+
+fn installer_ready_error(how: &str) -> String {
+    if resolve_xhs_bin().is_some() {
+        format!("{how} 执行成功，但配套 Python 里没有 xhs_cli")
+    } else {
+        format!("{how} 执行成功，但还是找不到 xhs")
+    }
+}
+
 fn install_xiaohongshu_cli() -> Result<String, String> {
     let installers = all_installers();
     let mut errors = Vec::new();
@@ -540,8 +549,8 @@ fn install_xiaohongshu_cli() -> Result<String, String> {
 
     for installer in &installers {
         match run_installer(installer) {
-            Ok(how) if resolve_xhs_bin().is_some() => return Ok(how),
-            Ok(how) => errors.push(format!("{how} 执行成功，但还是找不到 xhs")),
+            Ok(how) if xhs_cli_ready() => return Ok(how),
+            Ok(how) => errors.push(installer_ready_error(&how)),
             Err(error) => errors.push(error),
         }
     }
@@ -549,8 +558,8 @@ fn install_xiaohongshu_cli() -> Result<String, String> {
     if !had_uv {
         if let Some(uv) = bootstrap_uv() {
             match run_installer(&Installer::Uv(uv)) {
-                Ok(how) if resolve_xhs_bin().is_some() => return Ok(how),
-                Ok(how) => errors.push(format!("{how} 执行成功，但还是找不到 xhs")),
+                Ok(how) if xhs_cli_ready() => return Ok(how),
+                Ok(how) => errors.push(installer_ready_error(&how)),
                 Err(error) => errors.push(error),
             }
         }
@@ -812,5 +821,12 @@ mod tests {
         ));
         assert!(looks_like_missing_python("No Python interpreters found"));
         assert!(!looks_like_network_error("package not found"));
+    }
+
+    #[test]
+    fn installer_ready_error_is_actionable() {
+        let message = installer_ready_error("uv");
+        assert!(message.contains("uv 执行成功"));
+        assert!(message.contains("xhs"));
     }
 }

@@ -231,7 +231,12 @@ def main() -> int:
             _unwrap_browser_response_payload,
         )
     except ImportError as exc:
-        emit({"event": "error", "message": f"未找到扫码依赖：{exc}"})
+        emit(
+            {
+                "event": "error",
+                "message": f"未找到扫码依赖：{exc}。请用 xiaohongshu-cli 的配套 Python，或点「再次检查环境」。",
+            }
+        )
         return 1
 
     finishing = {"on": False}

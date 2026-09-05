@@ -275,6 +275,10 @@ pub(crate) fn resolve_named_bin(name: &str) -> Option<PathBuf> {
     None
 }
 
+const XHS_CLI_LOGIN_MODULE: &str = "xhs_cli.qr_login";
+const MODULE_PROBE_TIMEOUT_MS: u64 = 3_000;
+const MAX_FALLBACK_PYTHONS: usize = 3;
+
 pub(crate) fn resolve_companion_python() -> Result<PathBuf, String> {
     if let Some(explicit) = std::env::var("XHS_PYTHON")
         .ok()
@@ -282,44 +286,139 @@ pub(crate) fn resolve_companion_python() -> Result<PathBuf, String> {
         .filter(|value| !value.is_empty())
     {
         let path = PathBuf::from(explicit);
-        if path.is_file() {
+        if !usable_bin(&path) {
+            return Err(format!("XHS_PYTHON 无效：{}", path.display()));
+        }
+        if python_has_module(&path, XHS_CLI_LOGIN_MODULE) {
             return Ok(path);
         }
-        return Err(format!("XHS_PYTHON 无效：{}", path.display()));
+        return Err(format!(
+            "XHS_PYTHON 无法 import {XHS_CLI_LOGIN_MODULE}：{}",
+            path.display()
+        ));
     }
 
-    let Some(bin) = resolve_xhs_bin() else {
-        return fallback_python3().ok_or_else(|| "找不到 Python，无法启动扫码。".into());
-    };
-    let real = std::fs::canonicalize(&bin).unwrap_or(bin);
-    if let Some(dir) = real.parent() {
-        if let Some(python) = python_in_dir(dir) {
-            return Ok(python);
+    let xhs_bin = resolve_xhs_bin();
+    let candidates = companion_python_candidates(xhs_bin.as_deref(), home_dir().as_deref());
+    if let Some(python) = pick_python_where(candidates, |path| {
+        python_has_module(path, XHS_CLI_LOGIN_MODULE)
+    }) {
+        return Ok(python);
+    }
+    Err(missing_companion_python_error(xhs_bin.is_some()))
+}
+
+pub(crate) fn python_has_module(python: &Path, module: &str) -> bool {
+    if !usable_bin(python) || !is_python_module_name(module) {
+        return false;
+    }
+    let script = format!("import {module}");
+    run_cli_as(python, &["-c", &script], MODULE_PROBE_TIMEOUT_MS, "python")
+        .ok()
+        .is_some_and(|(code, _, _)| code == 0)
+}
+
+fn is_python_module_name(module: &str) -> bool {
+    if module.is_empty() {
+        return false;
+    }
+    module.split('.').all(|part| {
+        let mut chars = part.chars();
+        matches!(chars.next(), Some(first) if first == '_' || first.is_ascii_alphabetic())
+            && chars.all(|next| next == '_' || next.is_ascii_alphanumeric())
+    })
+}
+
+fn missing_companion_python_error(has_xhs: bool) -> String {
+    if has_xhs {
+        format!(
+            "已找到 xhs，但配套 Python 里没有 {XHS_CLI_LOGIN_MODULE}。请点「再次检查环境」，或执行：uv tool install xiaohongshu-cli"
+        )
+    } else {
+        format!(
+            "找不到扫码依赖 {XHS_CLI_LOGIN_MODULE}。请点「再次检查环境」，或执行：uv tool install xiaohongshu-cli"
+        )
+    }
+}
+
+fn companion_python_candidates(xhs_bin: Option<&Path>, home: Option<&Path>) -> Vec<PathBuf> {
+    companion_python_candidates_from(xhs_bin, home, &candidate_bin_dirs())
+}
+
+fn companion_python_candidates_from(
+    xhs_bin: Option<&Path>,
+    home: Option<&Path>,
+    extra_dirs: &[PathBuf],
+) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Some(bin) = xhs_bin {
+        if let Some(python) = python_from_shebang(bin) {
+            push_unique(&mut out, python);
+        }
+        let real = std::fs::canonicalize(bin).unwrap_or_else(|_| bin.to_path_buf());
+        if let Some(python) = python_from_shebang(&real) {
+            push_unique(&mut out, python);
+        }
+        // uv 的 venv python 必须保持为 bin/python 软链，不能 realpath 到独立发行版。
+        push_pythons_in_dir(&mut out, real.parent());
+        push_pythons_in_dir(&mut out, bin.parent());
+    }
+    if let Some(home) = home {
+        for dir in uv_tool_bin_dirs(home) {
+            push_pythons_in_dir(&mut out, Some(&dir));
         }
     }
-    if let Some(from_shebang) = python_from_shebang(&real) {
-        return Ok(from_shebang);
+    let mut fallbacks = 0;
+    for dir in extra_dirs {
+        if fallbacks >= MAX_FALLBACK_PYTHONS {
+            break;
+        }
+        let before = out.len();
+        push_pythons_in_dir(&mut out, Some(dir));
+        fallbacks += out.len().saturating_sub(before);
     }
-    fallback_python3().ok_or_else(|| "找不到与 xhs 配套的 Python。".into())
+    out
+}
+
+fn pick_python_where(
+    candidates: Vec<PathBuf>,
+    mut ok: impl FnMut(&Path) -> bool,
+) -> Option<PathBuf> {
+    candidates.into_iter().find(|python| ok(python))
+}
+
+fn push_pythons_in_dir(out: &mut Vec<PathBuf>, dir: Option<&Path>) {
+    let Some(dir) = dir else {
+        return;
+    };
+    for python in pythons_in_dir(dir) {
+        push_unique(out, python);
+    }
+}
+
+fn push_unique(out: &mut Vec<PathBuf>, path: PathBuf) {
+    if !out.iter().any(|item| item == &path) {
+        out.push(path);
+    }
 }
 
 fn python_in_dir(dir: &Path) -> Option<PathBuf> {
-    for name in python_names() {
-        let path = dir.join(name);
-        if usable_bin(&path) {
-            return Some(path);
-        }
-    }
-    None
+    pythons_in_dir(dir).into_iter().next()
 }
 
-fn fallback_python3() -> Option<PathBuf> {
-    for dir in candidate_bin_dirs() {
-        if let Some(python) = python_in_dir(&dir) {
-            return Some(python);
-        }
-    }
-    None
+fn pythons_in_dir(dir: &Path) -> Vec<PathBuf> {
+    python_names()
+        .iter()
+        .map(|name| dir.join(name))
+        .filter(|path| usable_bin(path))
+        .collect()
+}
+
+fn uv_tool_bin_dirs(home: &Path) -> Vec<PathBuf> {
+    vec![
+        home.join(".local/share/uv/tools/xiaohongshu-cli/bin"),
+        home.join(".local/share/uv/tools/xiaohongshu-cli/Scripts"),
+    ]
 }
 
 fn python_from_shebang(bin: &Path) -> Option<PathBuf> {
@@ -332,7 +431,7 @@ fn python_from_shebang(bin: &Path) -> Option<PathBuf> {
         return None;
     }
     let path = PathBuf::from(rest.split_whitespace().next()?);
-    path.is_file().then_some(path)
+    usable_bin(&path).then_some(path)
 }
 
 pub(crate) fn home_dir() -> Option<PathBuf> {
@@ -391,8 +490,7 @@ fn candidate_bin_dirs() -> Vec<PathBuf> {
     if let Some(home) = home_dir() {
         dirs.push(home.join(".local/bin"));
         dirs.push(home.join(".cargo/bin"));
-        dirs.push(home.join(".local/share/uv/tools/xiaohongshu-cli/bin"));
-        dirs.push(home.join(".local/share/uv/tools/xiaohongshu-cli/Scripts"));
+        dirs.extend(uv_tool_bin_dirs(&home));
         dirs.extend(python_user_bin_dirs(&home));
     }
     if let Some(tool_bin) = std::env::var_os("UV_TOOL_BIN_DIR") {
@@ -1379,5 +1477,156 @@ mod tests {
         let text = String::from_utf8_lossy(&gbk_hi);
         assert!(!text.is_empty());
         assert_eq!(read_pipe(Some(gbk_hi.as_slice())).len(), text.len());
+    }
+
+    fn write_stub(path: &Path) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("temp dir");
+        }
+        std::fs::write(path, "#!/bin/sh\nexit 1\n").expect("stub");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        }
+    }
+
+    #[test]
+    fn skips_unrelated_python_next_to_xhs_trampoline() {
+        let root = std::env::temp_dir().join(format!(
+            "xhs-companion-trampoline-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let local_bin = root.join("local/bin");
+        let tool_bin = root.join(".local/share/uv/tools/xiaohongshu-cli/bin");
+        write_stub(&local_bin.join("xhs"));
+        for name in python_names() {
+            write_stub(&local_bin.join(name));
+            write_stub(&tool_bin.join(name));
+        }
+
+        let candidates = companion_python_candidates_from(
+            Some(&local_bin.join("xhs")),
+            Some(&root),
+            &[local_bin.clone(), tool_bin.clone()],
+        );
+        let neighbor = python_in_dir(&local_bin).expect("neighbor python");
+        let tool = python_in_dir(&tool_bin).expect("tool python");
+        let neighbor_pos = candidates
+            .iter()
+            .position(|path| path == &neighbor)
+            .expect("neighbor candidate");
+        let tool_pos = candidates
+            .iter()
+            .position(|path| path == &tool)
+            .expect("tool candidate");
+        assert!(
+            neighbor_pos < tool_pos,
+            "trampoline 旁的 python 会排在工具环境前面，必须靠探测跳过"
+        );
+        assert!(!python_has_module(&neighbor, XHS_CLI_LOGIN_MODULE));
+
+        let picked = pick_python_where(candidates, |path| {
+            path == tool.as_path() && !python_has_module(&neighbor, XHS_CLI_LOGIN_MODULE)
+        });
+        assert_eq!(picked, Some(tool));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn prefers_xhs_shebang_python_over_neighbor() {
+        let root = std::env::temp_dir().join(format!(
+            "xhs-companion-shebang-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let local_bin = root.join("bin");
+        let tool_python = root.join("tool/python");
+        write_stub(&tool_python);
+        if let Some(parent) = local_bin.join("xhs").parent() {
+            std::fs::create_dir_all(parent).expect("bin");
+        }
+        std::fs::write(
+            local_bin.join("xhs"),
+            format!("#!{}\n", tool_python.display()),
+        )
+        .expect("xhs");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(
+                local_bin.join("xhs"),
+                std::fs::Permissions::from_mode(0o755),
+            )
+            .expect("chmod");
+        }
+        write_stub(&local_bin.join("python3"));
+
+        let candidates = companion_python_candidates_from(
+            Some(&local_bin.join("xhs")),
+            None,
+            &[local_bin.clone()],
+        );
+        assert_eq!(candidates.first(), Some(&tool_python));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn companion_error_mentions_xhs_cli_module() {
+        assert!(missing_companion_python_error(true).contains("xhs_cli.qr_login"));
+        assert!(missing_companion_python_error(false).contains("xhs_cli.qr_login"));
+        assert!(missing_companion_python_error(true).contains("再次检查环境"));
+    }
+
+    #[test]
+    fn rejects_invalid_python_module_names() {
+        assert!(is_python_module_name("xhs_cli.qr_login"));
+        assert!(is_python_module_name("camoufox"));
+        assert!(!is_python_module_name(""));
+        assert!(!is_python_module_name("xhs_cli; import os"));
+        assert!(!python_has_module(
+            Path::new("/bin/sh"),
+            "xhs_cli; import os"
+        ));
+    }
+
+    #[test]
+    fn limits_fallback_pythons_from_extra_dirs() {
+        let root = std::env::temp_dir().join(format!(
+            "xhs-companion-fallback-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let extra: Vec<PathBuf> = (0..6)
+            .map(|index| {
+                let dir = root.join(format!("py{index}"));
+                write_stub(&dir.join(python_names()[0]));
+                dir
+            })
+            .collect();
+        let candidates = companion_python_candidates_from(None, None, &extra);
+        assert_eq!(candidates.len(), MAX_FALLBACK_PYTHONS);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    #[ignore = "needs a local xiaohongshu-cli install"]
+    fn companion_python_imports_login_module_when_xhs_is_installed() {
+        let python = resolve_companion_python().expect("companion python");
+        assert!(
+            python_has_module(&python, XHS_CLI_LOGIN_MODULE),
+            "resolved {} cannot import {XHS_CLI_LOGIN_MODULE}",
+            python.display()
+        );
     }
 }
