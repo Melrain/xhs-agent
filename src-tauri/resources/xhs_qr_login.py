@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import signal
 import sys
 import time
@@ -63,6 +65,29 @@ def probe_host_screen() -> Any | None:
     return Screen(max_width=width, max_height=height)
 
 
+def camoufox_default_addons_to_exclude() -> list[Any]:
+    """QR login does not need uBlock. Skip default addons so a broken cache
+    (empty addons/UBO from a failed Mozilla download) cannot block the window.
+    """
+    try:
+        from camoufox.addons import DefaultAddons
+    except ImportError:
+        return []
+    return list(DefaultAddons)
+
+
+def repair_broken_camoufox_addons() -> None:
+    """Camoufox treats any existing addon folder as installed, even if empty."""
+    try:
+        from camoufox.addons import DefaultAddons, get_addon_path
+    except ImportError:
+        return
+    for addon in DefaultAddons:
+        path = get_addon_path(addon.name)
+        if os.path.isdir(path) and not os.path.isfile(os.path.join(path, "manifest.json")):
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def camoufox_launch_kwargs(
     *,
     sys_platform: str | None = None,
@@ -82,6 +107,9 @@ def camoufox_launch_kwargs(
         "os": camoufox_os_for_host(sys_platform),
         "locale": list(DEFAULT_CAMOUFOX_LOCALES if locale is None else locale),
     }
+    excluded = camoufox_default_addons_to_exclude()
+    if excluded:
+        kwargs["exclude_addons"] = excluded
     resolved = screen if screen is not None else (probe_host_screen() if probe_screen else None)
     if resolved is not None:
         kwargs["screen"] = resolved
@@ -263,6 +291,7 @@ def main() -> int:
     }
 
     emit({"event": "ready"})
+    repair_broken_camoufox_addons()
 
     try:
         with Camoufox(**camoufox_launch_kwargs()) as browser:
@@ -383,7 +412,10 @@ def main() -> int:
     except SystemExit:
         raise
     except Exception as exc:  # noqa: BLE001
-        emit({"event": "error", "message": str(exc) or "桌面扫码失败"})
+        detail = str(exc) or "桌面扫码失败"
+        if "manifest.json is missing" in detail:
+            detail = "扫码浏览器插件损坏。请点「再次检查环境」后重试"
+        emit({"event": "error", "message": detail})
         return 1
 
 

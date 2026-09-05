@@ -677,6 +677,9 @@ mod tests {
             source.contains("Camoufox(**camoufox_launch_kwargs())"),
             "QR login must launch Camoufox from host-aligned kwargs, not a random fingerprint"
         );
+        assert!(source.contains("exclude_addons"));
+        assert!(source.contains("DefaultAddons"));
+        assert!(source.contains("repair_broken_camoufox_addons"));
         assert!(source.contains("zh-CN"));
         assert!(source.contains("if platform == \"win32\":"));
         assert!(source.contains("return \"windows\""));
