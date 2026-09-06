@@ -7,6 +7,7 @@ import { Sidebar } from "./shell/Sidebar"
 import { UpdateBar } from "./shell/UpdateBar"
 import { WORKSPACES, type WorkspaceId } from "./shell/types"
 import { CommentsWorkspace } from "./workspaces/CommentsWorkspace"
+import { FilmWorkspace } from "./workspaces/FilmWorkspace"
 import { MakeupWorkspace } from "./workspaces/MakeupWorkspace"
 import { NotesWorkspace } from "./workspaces/NotesWorkspace"
 import { RecruitWorkspace } from "./workspaces/RecruitWorkspace"
@@ -77,6 +78,9 @@ function AppShell() {
                 </div>
                 <div className="app-pane" hidden={workspace !== "makeup"}>
                   <MakeupWorkspace />
+                </div>
+                <div className="app-pane" hidden={workspace !== "film"}>
+                  <FilmWorkspace />
                 </div>
               </div>
             </CloudGate>
