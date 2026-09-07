@@ -1,8 +1,13 @@
 import { backendFetch } from "@/lib/api/client"
-import { isFilmPhase, type FilmPackage, type FilmPhase } from "@/lib/film-package"
+import {
+  isFilmNextAction,
+  isFilmPhase,
+  type FilmNextAction,
+  type FilmPackage,
+  type FilmPhase,
+} from "@/lib/film-package"
 
 const LIST_TIMEOUT_MS = 15_000
-const MESSAGE_TIMEOUT_MS = 120_000
 
 export const FILM_QUERY_KEY = ["film"] as const
 
@@ -24,6 +29,7 @@ export type FilmProjectSummary = {
 export type FilmProject = FilmProjectSummary & {
   brief: string
   phase: FilmPhase
+  nextAction?: FilmNextAction
   package?: FilmPackage
 }
 
@@ -56,6 +62,7 @@ function parseProject(value: unknown): FilmProject | null {
     ...summary,
     brief,
     phase: isFilmPhase(record?.phase) ? record.phase : "intake",
+    nextAction: isFilmNextAction(record?.nextAction) ? record.nextAction : undefined,
     package: pkg,
   }
 }
@@ -138,24 +145,5 @@ export async function deleteFilmProject(projectId: string, options?: { signal?: 
       timeoutMs: LIST_TIMEOUT_MS,
       signal: options?.signal,
     },
-  )
-}
-
-export async function sendFilmMessage(
-  projectId: string,
-  text: string,
-  options?: { signal?: AbortSignal },
-) {
-  return requireProject(
-    await backendFetch<unknown>(
-      `/api/backend/internal/film/projects/${encodeURIComponent(projectId)}/messages`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-        timeoutMs: MESSAGE_TIMEOUT_MS,
-        signal: options?.signal,
-      },
-    ),
   )
 }

@@ -2275,112 +2275,26 @@ select {
   white-space: pre-wrap;
 }
 
-.film-composer {
-  pointer-events: none;
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 20;
-  display: flex;
-  justify-content: center;
-  padding: 0 20px 16px;
-}
-
-.film-composer-form {
-  pointer-events: auto;
-  width: min(560px, 100%);
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--bg-raise) 92%, transparent);
-  box-shadow: 0 12px 40px rgb(9 9 11 / 8%);
-  backdrop-filter: blur(10px);
-}
-
-.film-composer-form textarea {
-  display: block;
-  width: 100%;
-  min-height: 44px;
-  max-height: 96px;
-  border: 0;
-  padding: 12px 16px 4px;
-  background: transparent;
-  color: inherit;
-  resize: none;
-  outline: none;
-}
-
-.film-composer-form .status-text {
-  padding: 0 16px 4px;
-  font-size: 12px;
-}
-
-.film-composer-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px 8px;
-}
-
-.film-composer-tools {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-
-.film-icon-btn,
-.film-agent-btn,
-.film-send-btn {
+.film-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
 }
 
-.film-icon-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-}
-
-.film-icon-btn:hover,
-.film-agent-btn:hover {
+.film-icon-btn:hover {
   background: var(--bg-soft);
   color: var(--ink);
 }
 
 .film-icon-btn:disabled {
   opacity: 0.4;
-  cursor: default;
-}
-
-.film-agent-btn {
-  gap: 6px;
-  height: 32px;
-  border-radius: 999px;
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.film-agent-btn.on {
-  background: var(--accent);
-  color: #fafafa;
-}
-
-.film-send-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fafafa;
-}
-
-.film-send-btn:disabled {
-  opacity: 0.35;
   cursor: default;
 }
 
@@ -2482,7 +2396,7 @@ select {
 .film-stage-error {
   pointer-events: none;
   position: absolute;
-  inset: auto 16px 108px;
+  inset: auto 16px 16px;
   z-index: 20;
   margin: 0;
   color: var(--bad);

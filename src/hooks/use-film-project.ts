@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { isAbortError } from "@/lib/api/client"
 import {
   createFilmProject,
   deleteFilmProject,
@@ -11,7 +10,6 @@ import {
   listFilmProjects,
   openFilmProject,
   renameFilmProject,
-  sendFilmMessage,
   type FilmProject,
 } from "@/lib/api/film"
 import { getStoredUser } from "@/lib/auth/tokens"
@@ -99,41 +97,3 @@ export function useFilmProjectMutations() {
     }),
   }
 }
-
-export function useSendFilmMessage(projectId: string) {
-  const userId = currentFilmUserId()
-  const queryClient = useQueryClient()
-  const abortRef = useRef<AbortController | null>(null)
-
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort()
-      abortRef.current = null
-      useFilmStore.getState().setSending(false)
-    }
-  }, [projectId])
-
-  return useMutation({
-    mutationFn: async (text: string) => {
-      abortRef.current?.abort()
-      const controller = new AbortController()
-      abortRef.current = controller
-      useFilmStore.getState().setSending(true)
-      try {
-        return await sendFilmMessage(projectId, text, { signal: controller.signal })
-      } finally {
-        if (abortRef.current === controller) abortRef.current = null
-        useFilmStore.getState().setSending(false)
-      }
-    },
-    onSuccess: (project) => {
-      if (!userId) return
-      const current = queryClient.getQueryData<FilmProject>(filmCurrentQueryKey(userId))
-      if (current?.id === project.id) {
-        queryClient.setQueryData(filmCurrentQueryKey(userId), project)
-      }
-    },
-  })
-}
-
-export { isAbortError }

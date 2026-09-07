@@ -15,22 +15,19 @@ type FilmStore = {
   notes: FilmCard[]
   layouts: FilmLayoutMap
   hiddenIds: string[]
-  sending: boolean
   attachProject: (projectId: string) => void
   addCard: (kind: FilmCardKind, position: FilmCardPosition) => void
   moveCard: (cardId: string, position: FilmCardPosition) => void
   removeCard: (cardId: string) => void
   revealCard: (cardId: string) => void
-  setSending: (sending: boolean) => void
   reset: () => void
 }
 
-const EMPTY: Pick<FilmStore, "projectId" | "notes" | "layouts" | "hiddenIds" | "sending"> = {
+const EMPTY: Pick<FilmStore, "projectId" | "notes" | "layouts" | "hiddenIds"> = {
   projectId: null,
   notes: [],
   layouts: {},
   hiddenIds: [],
-  sending: false,
 }
 
 export const useFilmStore = create<FilmStore>((set, get) => ({
@@ -42,7 +39,6 @@ export const useFilmStore = create<FilmStore>((set, get) => ({
       notes: [],
       layouts: readFilmLayout(projectId),
       hiddenIds: readFilmHidden(projectId),
-      sending: false,
     })
   },
   addCard: (kind, position) => {
@@ -79,7 +75,6 @@ export const useFilmStore = create<FilmStore>((set, get) => ({
     set({ hiddenIds: next })
     if (projectId) writeFilmHidden(projectId, next)
   },
-  setSending: (sending) => set({ sending }),
   reset: () => set(EMPTY),
 }))
 

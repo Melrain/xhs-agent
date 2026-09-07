@@ -3,7 +3,6 @@ import { Check, ChevronDown, Plus, Trash2 } from "lucide-react"
 import { studioErrorMessage } from "@/lib/api/client"
 import type { FilmProject, FilmProjectSummary } from "@/lib/api/film"
 import { useFilmProjectMutations, useFilmProjects } from "@/hooks/use-film-project"
-import { useFilmStore } from "@/lib/film-store"
 
 export function FilmProjectSwitcher({
   current,
@@ -14,14 +13,12 @@ export function FilmProjectSwitcher({
 }) {
   const list = useFilmProjects(enabled && Boolean(current?.id))
   const mutations = useFilmProjectMutations()
-  const sending = useFilmStore((state) => state.sending)
   const [renaming, setRenaming] = useState(false)
   const [draft, setDraft] = useState("")
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const busy =
-    sending || mutations.create.isPending || mutations.open.isPending || mutations.remove.isPending
+  const busy = mutations.create.isPending || mutations.open.isPending || mutations.remove.isPending
 
   const projects = useMemo(() => {
     const items: FilmProjectSummary[] = Array.isArray(list.data) ? list.data : []
