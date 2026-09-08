@@ -2130,6 +2130,15 @@ select {
   font-size: 12px;
 }
 
+.film-phase-busy {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .film-project-switcher,
 .film-project-menu-wrap {
   display: flex;
@@ -2242,8 +2251,13 @@ select {
   box-shadow: 0 8px 24px rgb(9 9 11 / 6%);
 }
 
-.film-card-node.brief {
+.film-card-node.brief,
+.film-card-node.reference {
   border-color: color-mix(in srgb, var(--ink) 18%, var(--line));
+}
+
+.film-card-node.is-placeholder {
+  opacity: 0.72;
 }
 
 .film-card-node header {
@@ -2252,7 +2266,14 @@ select {
   gap: 6px;
 }
 
-.film-card-kind {
+.film-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.film-card-kind,
+.film-card-status {
   align-self: flex-start;
   border-radius: 999px;
   padding: 2px 7px;
@@ -2273,6 +2294,90 @@ select {
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.film-card-progress {
+  overflow: hidden;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+}
+
+.film-card-progress span {
+  display: block;
+  width: 36%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  animation: film-progress 1.2s ease-in-out infinite;
+}
+
+.film-card-progress span[style] {
+  animation: none;
+}
+
+@keyframes film-progress {
+  0% {
+    transform: translateX(-80%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.film-card-segments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.film-card-segments li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.film-card-segments strong {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.film-ingest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.film-ingest input[type="url"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--bg);
+  color: inherit;
+}
+
+.film-ingest-actions,
+.film-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.film-canvas .react-flow__edge-path {
+  stroke: color-mix(in srgb, var(--ink) 22%, var(--line));
+  stroke-width: 1.5;
 }
 
 .film-icon-btn {

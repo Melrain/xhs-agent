@@ -152,7 +152,7 @@ export function FilmProjectSwitcher({
               删除「{current.title}」？
             </p>
             <p className="film-dialog-copy">
-              对话和制作包都会清掉，画布上的点子卡也会一起消失。
+              制作包和画布上的卡片都会清掉。
             </p>
             <div className="film-dialog-actions">
               <button type="button" className="ghost-btn compact" onClick={() => setConfirmDelete(false)}>

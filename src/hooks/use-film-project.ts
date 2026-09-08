@@ -1,6 +1,9 @@
 import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  addFilmReference,
+  analyzeFilmReference,
+  approveFilmStage,
   createFilmProject,
   deleteFilmProject,
   filmCurrentQueryKey,
@@ -9,11 +12,13 @@ import {
   getCurrentFilmProject,
   listFilmProjects,
   openFilmProject,
+  rejectFilmStage,
   renameFilmProject,
   type FilmProject,
 } from "@/lib/api/film"
 import { getStoredUser } from "@/lib/auth/tokens"
 import { clearFilmHidden, clearFilmLayout } from "@/lib/film-client-state"
+import { isFilmProjectBusy } from "@/lib/film-package"
 import { useFilmStore } from "@/lib/film-store"
 
 export function currentFilmUserId() {
@@ -36,6 +41,7 @@ export function useFilmCurrentProject(enabled: boolean) {
     queryFn: ({ signal }) => getCurrentFilmProject({ signal }),
     enabled: ready,
     staleTime: 10_000,
+    refetchInterval: (current) => (isFilmProjectBusy(current.state.data) ? 2000 : false),
   })
 
   useEffect(() => {
@@ -94,6 +100,42 @@ export function useFilmProjectMutations() {
         clearFilmHidden(projectId)
         remember(await getCurrentFilmProject())
       },
+    }),
+  }
+}
+
+export function useFilmPipelineMutations() {
+  const userId = currentFilmUserId()
+  const queryClient = useQueryClient()
+
+  const remember = (project: FilmProject) => {
+    if (!userId) return
+    queryClient.setQueryData(filmCurrentQueryKey(userId), project)
+    void queryClient.invalidateQueries({ queryKey: filmProjectsQueryKey(userId) })
+  }
+
+  return {
+    addReference: useMutation({
+      mutationFn: (input: { projectId: string } & ({ url: string } | { file: File })) => {
+        const { projectId, ...payload } = input
+        return addFilmReference(projectId, payload)
+      },
+      onSuccess: remember,
+    }),
+    analyze: useMutation({
+      mutationFn: (input: { projectId: string; refId: string }) =>
+        analyzeFilmReference(input.projectId, input.refId),
+      onSuccess: remember,
+    }),
+    approve: useMutation({
+      mutationFn: (input: { projectId: string; stageId: string }) =>
+        approveFilmStage(input.projectId, input.stageId),
+      onSuccess: remember,
+    }),
+    reject: useMutation({
+      mutationFn: (input: { projectId: string; stageId: string }) =>
+        rejectFilmStage(input.projectId, input.stageId),
+      onSuccess: remember,
     }),
   }
 }
