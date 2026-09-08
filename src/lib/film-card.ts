@@ -26,12 +26,6 @@ export type FilmCardAction = {
   stageId?: string
 }
 
-export type FilmCardSegment = {
-  id: string
-  title?: string
-  text: string
-}
-
 export type FilmCardFields = {
   kind: FilmCardKind
   title: string
@@ -41,8 +35,8 @@ export type FilmCardFields = {
   busy?: boolean
   ingest?: boolean
   statusLabel?: string
-  progress?: number
-  segments?: FilmCardSegment[]
+  badge?: string
+  mediaUrl?: string
   actions?: FilmCardAction[]
 }
 
@@ -95,8 +89,8 @@ export function createFilmCard(
     busy: extras?.busy,
     ingest: extras?.ingest,
     statusLabel: extras?.statusLabel,
-    progress: extras?.progress,
-    segments: extras?.segments,
+    badge: extras?.badge,
+    mediaUrl: extras?.mediaUrl,
     actions: extras?.actions,
     width: extras?.width,
     position: { x: position.x, y: position.y },
@@ -117,8 +111,8 @@ export function cardsToNodes(cards: FilmCard[]): FilmCardNode[] {
       busy: card.busy,
       ingest: card.ingest,
       statusLabel: card.statusLabel,
-      progress: card.progress,
-      segments: card.segments,
+      badge: card.badge,
+      mediaUrl: card.mediaUrl,
       actions: card.actions,
     },
     style: { width: card.width ?? FILM_CARD_WIDTH[card.kind] },

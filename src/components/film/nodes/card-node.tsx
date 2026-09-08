@@ -20,35 +20,27 @@ export function FilmCardNode({ data }: NodeProps<FilmCardNodeType>) {
       <header>
         <div className="film-card-meta">
           <span className="film-card-kind">{kindLabel}</span>
+          {data.badge ? <span className="film-card-status">{data.badge}</span> : null}
           {data.statusLabel ? <span className="film-card-status">{data.statusLabel}</span> : null}
         </div>
         <h3>{data.title}</h3>
       </header>
       {data.busy ? (
-        <div
-          className="film-card-progress"
-          role="progressbar"
-          aria-label={data.statusLabel || "进行中"}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={
-            typeof data.progress === "number" ? Math.round(data.progress * 100) : undefined
-          }
-        >
-          <span style={typeof data.progress === "number" ? { width: `${Math.round(data.progress * 100)}%` } : undefined} />
+        <div className="film-card-progress" role="progressbar" aria-label={data.statusLabel || "进行中"}>
+          <span />
         </div>
       ) : null}
-      {data.body ? <p>{data.body}</p> : null}
-      {data.segments && data.segments.length > 0 ? (
-        <ol className="film-card-segments nodrag nowheel nopan">
-          {data.segments.map((segment) => (
-            <li key={segment.id}>
-              {segment.title ? <strong>{segment.title}</strong> : null}
-              <span>{segment.text}</span>
-            </li>
-          ))}
-        </ol>
+      {data.mediaUrl ? (
+        <video
+          className="film-card-media nodrag nopan nowheel"
+          src={data.mediaUrl}
+          controls
+          muted
+          playsInline
+          onPointerDown={(event) => event.stopPropagation()}
+        />
       ) : null}
+      {data.body ? <p>{data.body}</p> : null}
       {data.ingest ? <FilmIngestForm disabled={Boolean(data.busy)} onUrl={data.onIngestUrl} onFile={data.onIngestFile} /> : null}
       {data.actions && data.actions.length > 0 ? (
         <div className="film-card-actions">

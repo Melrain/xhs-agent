@@ -1,4 +1,4 @@
-import { backendFetch, STUDIO_VIDEO_TIMEOUT_MS } from "@/lib/api/client"
+import { backendFetch } from "@/lib/api/client"
 import {
   asRecord,
   parseFilmNextAction,
@@ -11,6 +11,7 @@ import {
 
 const LIST_TIMEOUT_MS = 15_000
 const UPLOAD_TIMEOUT_MS = 180_000
+const ANALYZE_TIMEOUT_MS = 60_000
 
 export const FILM_QUERY_KEY = ["film"] as const
 
@@ -185,7 +186,7 @@ export async function analyzeFilmReference(
       projectPath(projectId, `/references/${encodeURIComponent(refId)}/analyze`),
       {
         method: "POST",
-        timeoutMs: STUDIO_VIDEO_TIMEOUT_MS,
+        timeoutMs: ANALYZE_TIMEOUT_MS,
         signal: options?.signal,
       },
     ),
