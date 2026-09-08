@@ -16,14 +16,16 @@ export type FilmCardPosition = {
   y: number
 }
 
-export type FilmCardActionId = "analyze" | "approve" | "reject"
+export type FilmCardActionId = "analyze" | "approve" | "reject" | "run_local"
 
 export type FilmCardAction = {
   id: FilmCardActionId
   label: string
   variant?: "primary" | "ghost" | "danger"
+  disabled?: boolean
   refId?: string
   stageId?: string
+  stage?: string
 }
 
 export type FilmCardFields = {
@@ -62,7 +64,7 @@ export const FILM_CARD_LABELS: Record<FilmCardKind, string> = {
   reference: "参考片",
   breakdown: "拆解",
   script: "剧本",
-  stage: "稍后",
+  stage: "等本机执行",
 }
 
 export const FILM_CARD_WIDTH: Record<FilmCardKind, number> = {

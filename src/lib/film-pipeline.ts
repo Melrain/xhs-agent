@@ -7,6 +7,11 @@ import {
   type FilmCardPosition,
 } from "@/lib/film-card"
 import {
+  filmLocalWorkerActionLabel,
+  filmLocalWorkerHint,
+  isFilmLocalWorkerReady,
+} from "@/lib/film-local-worker"
+import {
   FILM_STAGE_LABELS,
   FILM_STAGES,
   filmBreakdownStageId,
@@ -15,6 +20,7 @@ import {
   filmStageKind,
   filmStatusLabel,
   inferFilmNextActionId,
+  isFilmLocalGenerationStage,
   isFilmProjectBusy,
   type FilmBreakdownItem,
   type FilmPackage,
@@ -52,25 +58,17 @@ function referenceBody(item: FilmReference) {
   return lines.join("\n") || undefined
 }
 
-function laterStageBody(kind: FilmStageKind) {
-  switch (kind) {
-    case "script":
-      return "拆解通过后，再写剧本。"
-    case "assets":
-      return "剧本定了再备素材。"
-    case "shots":
-      return "素材齐了再排分镜。"
-    case "keyframes":
-      return "分镜定了再出关键帧。"
-    case "clips":
-      return "关键帧过了再生成片段。"
-    case "audio":
-      return "片段齐了再配声音。"
-    case "cut":
-      return "声音过了再出成片。"
-    default:
-      return "这一步还没开始。"
-  }
+function localRunAction(kind: FilmStageKind, stageId: string): FilmCardAction[] {
+  return [
+    {
+      id: "run_local",
+      label: filmLocalWorkerActionLabel(),
+      variant: "ghost",
+      disabled: !isFilmLocalWorkerReady(),
+      stageId,
+      stage: kind,
+    },
+  ]
 }
 
 function referenceActions(
@@ -96,16 +94,18 @@ function placeholderCard(
   kind: FilmStageKind,
   index: number,
   layouts: LayoutMap,
-  extras?: { body?: string; cardKind?: FilmCard["kind"] },
+  extras?: { body?: string; cardKind?: FilmCard["kind"]; actions?: FilmCardAction[] },
 ): FilmCard {
   const id = `stage:${kind}`
+  const local = isFilmLocalGenerationStage(kind)
   return createFilmCard(extras?.cardKind ?? (kind === "script" ? "script" : "stage"), positionOf(id, index, layouts), {
     id,
     title: stage.label || FILM_STAGE_LABELS[kind],
-    body: extras?.body ?? laterStageBody(kind),
+    body: extras?.body ?? (local ? filmLocalWorkerHint(kind) : "这一步还没开始。"),
     locked: true,
     placeholder: true,
-    statusLabel: filmStatusLabel(stage.status) || "稍后",
+    statusLabel: local ? "等本机执行" : filmStatusLabel(stage.status) || undefined,
+    actions: extras?.actions ?? (local ? localRunAction(kind, stage.id) : undefined),
   })
 }
 
@@ -188,8 +188,8 @@ export function filmPipelineCards(
         cardKind: "breakdown",
         body:
           nextActionId === "run_breakdown"
-            ? "参考片已就绪，点卡片上的按钮开始拆解。"
-            : "还没拆解。",
+            ? "参考片已就绪，点参考片上的按钮开始拆解。完整拆解以后可在桌面跑。"
+            : filmLocalWorkerHint("breakdown"),
       })
       cards.push(card)
       pipelineIds.push(card.id)

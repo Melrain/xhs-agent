@@ -18,6 +18,8 @@ import {
   type FilmCardNode as FilmCardFlowNode,
 } from "@/lib/film-card"
 import { readFilmLayout } from "@/lib/film-client-state"
+import { requestFilmLocalWorker } from "@/lib/film-local-worker"
+import { isFilmStageKind } from "@/lib/film-package"
 import { filmPipelineCards } from "@/lib/film-pipeline"
 import { useFilmStore } from "@/lib/film-store"
 import { FilmCanvasControls } from "./film-canvas-controls"
@@ -197,6 +199,14 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
       }
       if (action.id === "reject" && action.stageId) {
         await pipeline.reject.mutateAsync({ projectId: id, stageId: action.stageId })
+        return
+      }
+      if (action.id === "run_local" && !action.disabled && action.stageId && isFilmStageKind(action.stage)) {
+        await requestFilmLocalWorker({
+          projectId: id,
+          stageId: action.stageId,
+          stage: action.stage,
+        })
       }
     } catch {
       // 卡片下方会显示接口错误
