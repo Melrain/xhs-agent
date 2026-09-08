@@ -209,7 +209,7 @@ export function FilmCanvas({
           try {
             const latest = await refreshPreflight()
             if (!canFilmAnalyze(latest)) {
-              setLocalError(filmGrokAuthLabel(latest))
+              setLocalError(analyzeGateLabel || filmGrokAuthLabel(latest))
               return
             }
           } catch {

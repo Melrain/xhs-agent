@@ -1,7 +1,11 @@
 import { ReactFlowProvider } from "@xyflow/react"
 import { studioErrorMessage } from "@/lib/api/client"
 import { useFilmCurrentProject, useFilmGrokPreflight } from "@/hooks/use-film-project"
-import { canFilmAnalyze, filmGrokAuthLabel } from "@/lib/film-grok-preflight"
+import {
+  canFilmAnalyze,
+  filmGrokAuthLabel,
+  mergeFilmGrokStatus,
+} from "@/lib/film-grok-preflight"
 import { filmNextActionMessage, isFilmProjectBusy } from "@/lib/film-package"
 import { FilmCanvas } from "./film-canvas"
 import { FilmGrokStatus } from "./film-grok-status"
@@ -15,6 +19,9 @@ export function FilmStudio() {
   const error = current.error ? studioErrorMessage(current.error) : ""
   const hint = project ? filmNextActionMessage(project) : ""
   const busy = isFilmProjectBusy(project)
+  const grokStatus = mergeFilmGrokStatus(preflight.data, project?.grok)
+  const canAnalyze = canFilmAnalyze(grokStatus)
+  const loginHint = project?.nextAction?.id === "grok_login" ? project.nextAction.message : ""
   const preflightError = preflight.error ? studioErrorMessage(preflight.error) : ""
 
   return (
@@ -24,9 +31,10 @@ export function FilmStudio() {
         {hint ? <span className="film-phase">{hint}</span> : null}
         {busy ? <span className="film-phase-busy">进行中</span> : null}
         <FilmGrokStatus
-          preflight={preflight.data}
+          preflight={grokStatus}
           loading={preflight.isFetching}
           error={preflightError || undefined}
+          loginMessage={!canAnalyze ? loginHint : undefined}
           onRecheck={() => {
             void preflight.refetch()
           }}
@@ -36,11 +44,11 @@ export function FilmStudio() {
         <ReactFlowProvider>
           <FilmCanvas
             project={project}
-            canAnalyze={canFilmAnalyze(preflight.data)}
+            canAnalyze={canAnalyze}
             analyzeGateLabel={
-              preflight.isLoading && !preflight.data
+              preflight.isLoading && !grokStatus
                 ? "正在检查本机 grok…"
-                : preflightError || (canFilmAnalyze(preflight.data) ? "" : filmGrokAuthLabel(preflight.data))
+                : loginHint || preflightError || (canAnalyze ? "" : filmGrokAuthLabel(grokStatus))
             }
             refreshPreflight={async () => {
               const result = await preflight.refetch()

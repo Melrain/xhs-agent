@@ -86,6 +86,7 @@ export function filmPhaseLabel(phase: unknown) {
 
 export const FILM_NEXT_ACTIONS = [
   "ingest_reference",
+  "grok_login",
   "run_breakdown",
   "review_breakdown",
   "write_script",
@@ -100,6 +101,7 @@ export type FilmNextAction = {
 
 export const FILM_NEXT_ACTION_LABELS: Record<FilmNextActionId, string> = {
   ingest_reference: "贴参考片链接，或上传视频",
+  grok_login: "请先 grok login",
   run_breakdown: "拆解参考片",
   review_breakdown: "看看拆解对不对",
   write_script: "下一步本机执行",

@@ -11,16 +11,18 @@ export function FilmGrokStatus({
   preflight,
   loading,
   error,
+  loginMessage,
   onRecheck,
 }: {
   preflight?: FilmGrokPreflight
   loading: boolean
   error?: string
+  loginMessage?: string
   onRecheck: () => void
 }) {
   const kind = filmGrokAuthKind(preflight)
   const label = error ? "未检查到本机 grok" : loading && !preflight ? "正在检查本机 grok…" : filmGrokAuthLabel(preflight)
-  const detail = error || filmGrokDetailText(preflight)
+  const detail = loginMessage?.trim() || error || filmGrokDetailText(preflight)
   const hints = filmGrokToolHints(preflight)
   const tone = error || !canFilmAnalyze(preflight) ? "is-bad" : "is-ok"
 

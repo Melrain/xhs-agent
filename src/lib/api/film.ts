@@ -1,5 +1,5 @@
 import { backendFetch } from "@/lib/api/client"
-import { parseFilmGrokPreflight } from "@/lib/film-grok-preflight"
+import { parseFilmGrokPreflight, parseFilmGrokThread, type FilmGrokThread } from "@/lib/film-grok-preflight"
 import {
   asRecord,
   parseFilmNextAction,
@@ -13,6 +13,7 @@ import {
 const LIST_TIMEOUT_MS = 15_000
 const UPLOAD_TIMEOUT_MS = 180_000
 const ANALYZE_TIMEOUT_MS = 60_000
+const PREFLIGHT_TIMEOUT_MS = 90_000
 
 export const FILM_QUERY_KEY = ["film"] as const
 
@@ -40,6 +41,7 @@ export type FilmProject = FilmProjectSummary & {
   phase: FilmPhase
   nextAction?: FilmNextAction
   package?: FilmPackage
+  grok?: FilmGrokThread
 }
 
 function unwrapProject(value: unknown): unknown {
@@ -74,6 +76,7 @@ function parseProject(value: unknown): FilmProject | null {
     phase: parseFilmPhase(record?.phase) ?? "reference",
     nextAction: parseFilmNextAction(record?.nextAction),
     package: parseFilmPackage(record?.package),
+    grok: parseFilmGrokThread(record?.grok),
   }
 }
 
@@ -156,7 +159,7 @@ export async function deleteFilmProject(projectId: string, options?: { signal?: 
 export async function getFilmGrokPreflight(options?: { signal?: AbortSignal }) {
   return parseFilmGrokPreflight(
     await backendFetch<unknown>("/api/backend/internal/film/grok/preflight", {
-      timeoutMs: LIST_TIMEOUT_MS,
+      timeoutMs: PREFLIGHT_TIMEOUT_MS,
       signal: options?.signal,
     }),
   )

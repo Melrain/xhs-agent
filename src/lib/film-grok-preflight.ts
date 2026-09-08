@@ -1,20 +1,30 @@
 import { asRecord } from "@/lib/film-package"
 
-/** GET /api/backend/internal/film/grok/preflight — 与 web 同一套字段。 */
+/** GET /api/backend/internal/film/grok/preflight — 最终字段。 */
 export type FilmGrokPreflight = {
   installed: boolean
   bin?: string
   authFile: boolean
   authOk: boolean
   detail: string
-  ffmpegOk: boolean
-  whisperOk: boolean
+  ffmpegOk?: boolean
+  whisperOk?: boolean
+}
+
+/** 项目/对话线程上的可选摘要，给顶栏用。 */
+export type FilmGrokThread = {
+  authOk: boolean
+  detail: string
 }
 
 export type FilmGrokAuthKind = "ok" | "missing" | "unsigned" | "expired"
 
 function asBool(value: unknown): boolean {
   return value === true
+}
+
+function asOptionalBool(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined
 }
 
 function asDisplay(value: unknown): string {
@@ -31,8 +41,6 @@ export function emptyFilmGrokPreflight(): FilmGrokPreflight {
     authFile: false,
     authOk: false,
     detail: "",
-    ffmpegOk: false,
-    whisperOk: false,
   }
 }
 
@@ -47,8 +55,41 @@ export function parseFilmGrokPreflight(value: unknown): FilmGrokPreflight {
     authFile: asBool(row.authFile),
     authOk: asBool(row.authOk),
     detail: asDisplay(row.detail),
-    ffmpegOk: asBool(row.ffmpegOk),
-    whisperOk: asBool(row.whisperOk),
+    ffmpegOk: asOptionalBool(row.ffmpegOk),
+    whisperOk: asOptionalBool(row.whisperOk),
+  }
+}
+
+export function parseFilmGrokThread(value: unknown): FilmGrokThread | undefined {
+  const record = asRecord(value)
+  if (!record || typeof record.authOk !== "boolean") return undefined
+  return {
+    authOk: record.authOk,
+    detail: asDisplay(record.detail),
+  }
+}
+
+export function mergeFilmGrokStatus(
+  preflight?: FilmGrokPreflight,
+  thread?: FilmGrokThread,
+): FilmGrokPreflight | undefined {
+  if (preflight) {
+    return {
+      installed: preflight.installed,
+      bin: preflight.bin,
+      authFile: preflight.authFile,
+      authOk: preflight.authOk,
+      detail: preflight.detail.trim() ? preflight.detail : thread?.detail ?? "",
+      ffmpegOk: preflight.ffmpegOk,
+      whisperOk: preflight.whisperOk,
+    }
+  }
+  if (!thread) return undefined
+  return {
+    installed: true,
+    authFile: thread.authOk,
+    authOk: thread.authOk,
+    detail: thread.detail,
   }
 }
 
@@ -85,7 +126,7 @@ export function filmGrokDetailText(preflight?: FilmGrokPreflight) {
 export function filmGrokToolHints(preflight?: FilmGrokPreflight) {
   if (!preflight) return []
   const hints: string[] = []
-  if (!preflight.ffmpegOk) hints.push("ffmpeg 还没好")
-  if (!preflight.whisperOk) hints.push("whisper 还没好")
+  if (preflight.ffmpegOk === false) hints.push("ffmpeg 还没好")
+  if (preflight.whisperOk === false) hints.push("whisper 还没好")
   return hints
 }
