@@ -50,7 +50,7 @@ export function FilmCardNode({ data }: NodeProps<FilmCardNodeType>) {
               type="button"
               className={`${action.variant === "danger" ? "danger-btn" : action.variant === "ghost" ? "ghost-btn" : "primary-btn"} compact nodrag nopan`}
               disabled={data.busy || action.disabled}
-              title={action.disabled ? action.label : undefined}
+              title={action.title ?? (action.disabled ? action.label : undefined)}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={() => data.onAction?.(action)}
             >

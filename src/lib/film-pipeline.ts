@@ -59,13 +59,17 @@ function referenceBody(item: FilmReference) {
   return lines.join("\n") || undefined
 }
 
-function localRunAction(kind: FilmStageKind, stageId: string): FilmCardAction[] {
+function localRunAction(
+  kind: FilmStageKind,
+  stageId: string,
+  canGenerate: boolean,
+): FilmCardAction[] {
   return [
     {
       id: "run_local",
       label: filmLocalWorkerActionLabel(),
       variant: "ghost",
-      disabled: !isFilmLocalWorkerReady(),
+      disabled: !isFilmLocalWorkerReady() || !canGenerate,
       stageId,
       stage: kind,
     },
@@ -75,9 +79,20 @@ function localRunAction(kind: FilmStageKind, stageId: string): FilmCardAction[] 
 function referenceActions(
   item: FilmReference,
   nextActionId: string | undefined,
+  canAnalyze: boolean,
+  gateLabel?: string,
 ): FilmCardAction[] {
   if (item.status !== "ready" || nextActionId !== "run_breakdown") return []
-  return [{ id: "analyze", label: "拆解这段参考片", variant: "primary", refId: item.id }]
+  return [
+    {
+      id: "analyze",
+      label: "拆解这段参考片",
+      title: canAnalyze ? undefined : gateLabel,
+      variant: "primary",
+      refId: item.id,
+      disabled: !canAnalyze,
+    },
+  ]
 }
 
 function breakdownActions(pkg: FilmPackage, nextActionId: string | undefined): FilmCardAction[] {
@@ -95,7 +110,7 @@ function placeholderCard(
   kind: FilmStageKind,
   index: number,
   layouts: LayoutMap,
-  extras?: { body?: string; cardKind?: FilmCard["kind"]; actions?: FilmCardAction[] },
+  extras?: { body?: string; cardKind?: FilmCard["kind"]; actions?: FilmCardAction[]; canGenerate?: boolean },
 ): FilmCard {
   const id = `stage:${kind}`
   const local = isFilmLocalGenerationStage(kind)
@@ -106,18 +121,22 @@ function placeholderCard(
     locked: true,
     placeholder: true,
     statusLabel: local ? filmLocalWorkerStatusLabel() : filmStatusLabel(stage.status) || undefined,
-    actions: extras?.actions ?? (local ? localRunAction(kind, stage.id) : undefined),
+    actions: extras?.actions ?? (local ? localRunAction(kind, stage.id, extras?.canGenerate !== false) : undefined),
   })
 }
 
 export function filmPipelineCards(
   project: FilmProject | undefined,
   layouts: LayoutMap,
+  options?: { canAnalyze?: boolean; canGenerate?: boolean; analyzeGateLabel?: string },
 ): { cards: FilmCard[]; pipelineIds: string[] } {
   const cards: FilmCard[] = []
   const pipelineIds: string[] = []
   const pkg = filmPackageOf(project)
   const nextActionId = inferFilmNextActionId(project)
+  const canAnalyze = options?.canAnalyze === true
+  const canGenerate = options?.canGenerate === true
+  const analyzeGateLabel = options?.analyzeGateLabel
   const stages = pkg.stages.length > 0 ? pkg.stages : fallbackStages()
   const hasReference = pkg.references.length > 0
   const showPipeline = pkg.stages.length > 0 || hasReference || nextActionId !== "ingest_reference"
@@ -166,7 +185,7 @@ export function filmPipelineCards(
             busy: item.status === "pending" || stage.status === "running",
             statusLabel: filmStatusLabel(item.status),
             mediaUrl: item.mediaUrl,
-            actions: referenceActions(item, nextActionId),
+            actions: referenceActions(item, nextActionId, canAnalyze, analyzeGateLabel),
           }),
         )
         if (refIndex === 0) pipelineIds.push(id)
@@ -187,9 +206,10 @@ export function filmPipelineCards(
       }
       const card = placeholderCard(stage, kind, index, layouts, {
         cardKind: "breakdown",
+        canGenerate,
         body:
           nextActionId === "run_breakdown"
-            ? "参考片已就绪，点参考片上的按钮开始拆解。完整拆解以后本机执行。"
+            ? "参考片已就绪，点参考片上的按钮开始拆解。完整拆解以后本机 grok / grok bot 执行。"
             : filmLocalWorkerHint("breakdown"),
       })
       cards.push(card)
@@ -197,7 +217,7 @@ export function filmPipelineCards(
       return
     }
 
-    const card = placeholderCard(stage, kind, index, layouts)
+    const card = placeholderCard(stage, kind, index, layouts, { canGenerate })
     cards.push(card)
     pipelineIds.push(card.id)
   })

@@ -2117,6 +2117,7 @@ select {
 .film-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   min-width: 0;
   padding: 10px 20px;
@@ -2137,6 +2138,57 @@ select {
   background: var(--bg-soft);
   color: var(--muted);
   font-size: 11px;
+}
+
+.film-grok-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.film-grok-status-label {
+  font-weight: 650;
+}
+
+.film-grok-status.is-ok .film-grok-status-label {
+  color: var(--ok);
+}
+
+.film-grok-status.is-bad .film-grok-status-label {
+  color: var(--bad);
+}
+
+.film-grok-status-detail {
+  color: var(--muted);
+}
+
+.film-grok-hint {
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #fef9c3;
+  color: #a16207;
+  font-size: 11px;
+}
+
+.film-grok-recheck {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.film-grok-recheck:hover {
+  color: var(--ink);
+}
+
+.film-grok-recheck:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .film-project-switcher,

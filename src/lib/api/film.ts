@@ -1,4 +1,5 @@
 import { backendFetch } from "@/lib/api/client"
+import { parseFilmGrokPreflight } from "@/lib/film-grok-preflight"
 import {
   asRecord,
   parseFilmNextAction,
@@ -21,6 +22,10 @@ export function filmProjectsQueryKey(userId: string) {
 
 export function filmCurrentQueryKey(userId: string) {
   return ["film", "current", userId] as const
+}
+
+export function filmGrokPreflightQueryKey() {
+  return ["film", "grok-preflight"] as const
 }
 
 export type FilmProjectSummary = {
@@ -146,6 +151,15 @@ export async function deleteFilmProject(projectId: string, options?: { signal?: 
     timeoutMs: LIST_TIMEOUT_MS,
     signal: options?.signal,
   })
+}
+
+export async function getFilmGrokPreflight(options?: { signal?: AbortSignal }) {
+  return parseFilmGrokPreflight(
+    await backendFetch<unknown>("/api/backend/internal/film/grok/preflight", {
+      timeoutMs: LIST_TIMEOUT_MS,
+      signal: options?.signal,
+    }),
+  )
 }
 
 export async function addFilmReference(

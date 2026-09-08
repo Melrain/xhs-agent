@@ -10,6 +10,7 @@ import {
 import { studioErrorMessage } from "@/lib/api/client"
 import type { FilmProject } from "@/lib/api/film"
 import { useFilmPipelineMutations } from "@/hooks/use-film-project"
+import { canFilmAnalyze, filmGrokAuthLabel, type FilmGrokPreflight } from "@/lib/film-grok-preflight"
 import {
   cardsToNodes,
   pipelineEdges,
@@ -41,7 +42,17 @@ function isHttpUrl(value: string) {
   }
 }
 
-export function FilmCanvas({ project }: { project?: FilmProject }) {
+export function FilmCanvas({
+  project,
+  canAnalyze = false,
+  analyzeGateLabel = "",
+  refreshPreflight,
+}: {
+  project?: FilmProject
+  canAnalyze?: boolean
+  analyzeGateLabel?: string
+  refreshPreflight?: () => Promise<FilmGrokPreflight | undefined>
+}) {
   const { screenToFlowPosition } = useReactFlow()
   const projectId = useFilmStore((state) => state.projectId)
   const notes = useFilmStore((state) => state.notes)
@@ -66,12 +77,16 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
   const lastRevealKey = useRef<string | undefined>(undefined)
 
   const { cards, pipelineIds } = useMemo(() => {
-    const built = filmPipelineCards(project, activeLayouts)
+    const built = filmPipelineCards(project, activeLayouts, {
+      canAnalyze,
+      canGenerate: canAnalyze,
+      analyzeGateLabel,
+    })
     return {
       cards: visibleFilmCards([...built.cards, ...activeNotes], activeHidden),
       pipelineIds: built.pipelineIds.filter((cardId) => !activeHidden.includes(cardId)),
     }
-  }, [activeHidden, activeLayouts, activeNotes, project])
+  }, [activeHidden, activeLayouts, activeNotes, analyzeGateLabel, canAnalyze, project])
 
   const [nodes, setNodes] = useState<FilmCardFlowNode[]>(() => cardsToNodes(cards))
   const [edges, setEdges] = useState<Edge[]>(() => pipelineEdges(pipelineIds))
@@ -190,6 +205,21 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
     setLocalError("")
     try {
       if (action.id === "analyze" && action.refId) {
+        if (refreshPreflight) {
+          try {
+            const latest = await refreshPreflight()
+            if (!canFilmAnalyze(latest)) {
+              setLocalError(filmGrokAuthLabel(latest))
+              return
+            }
+          } catch {
+            setLocalError("还没检查到本机 grok")
+            return
+          }
+        } else if (!canAnalyze) {
+          setLocalError(analyzeGateLabel || filmGrokAuthLabel())
+          return
+        }
         await pipeline.analyze.mutateAsync({ projectId: id, refId: action.refId })
         return
       }

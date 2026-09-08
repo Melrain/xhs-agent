@@ -21,6 +21,7 @@ export type FilmCardActionId = "analyze" | "approve" | "reject" | "run_local"
 export type FilmCardAction = {
   id: FilmCardActionId
   label: string
+  title?: string
   variant?: "primary" | "ghost" | "danger"
   disabled?: boolean
   refId?: string

@@ -7,9 +7,11 @@ import {
   createFilmProject,
   deleteFilmProject,
   filmCurrentQueryKey,
+  filmGrokPreflightQueryKey,
   filmProjectsQueryKey,
   FILM_QUERY_KEY,
   getCurrentFilmProject,
+  getFilmGrokPreflight,
   listFilmProjects,
   openFilmProject,
   rejectFilmStage,
@@ -51,6 +53,16 @@ export function useFilmCurrentProject(enabled: boolean) {
   }, [query.data?.id, queryClient, userId])
 
   return query
+}
+
+export function useFilmGrokPreflight(enabled: boolean) {
+  return useQuery({
+    queryKey: filmGrokPreflightQueryKey(),
+    queryFn: ({ signal }) => getFilmGrokPreflight({ signal }),
+    enabled,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+  })
 }
 
 export function useFilmProjects(enabled: boolean) {
