@@ -163,7 +163,7 @@ export function filmPipelineCards(
           createFilmCard("reference", positionOf(id, index, layouts), {
             id,
             title: stage.label || "参考片",
-            body: "贴一条参考片链接，或上传视频。导入后会出现在画布上。",
+            body: "贴一条参考片链接，或上传视频。导入后会出现在这里。",
             locked: true,
             ingest: true,
             busy: isFilmProjectBusy(project) || stage.status === "running",
