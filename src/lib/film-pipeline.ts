@@ -9,6 +9,7 @@ import {
 import {
   filmLocalWorkerActionLabel,
   filmLocalWorkerHint,
+  filmLocalWorkerStatusLabel,
   isFilmLocalWorkerReady,
 } from "@/lib/film-local-worker"
 import {
@@ -84,7 +85,7 @@ function breakdownActions(pkg: FilmPackage, nextActionId: string | undefined): F
   const stageId = filmBreakdownStageId(pkg)
   if (!stageId) return []
   return [
-    { id: "approve", label: "用这份拆解写剧本", variant: "primary", stageId },
+    { id: "approve", label: "通过拆解，下一步本机执行", variant: "primary", stageId },
     { id: "reject", label: "重新拆解", variant: "ghost", stageId },
   ]
 }
@@ -104,7 +105,7 @@ function placeholderCard(
     body: extras?.body ?? (local ? filmLocalWorkerHint(kind) : "这一步还没开始。"),
     locked: true,
     placeholder: true,
-    statusLabel: local ? "等本机执行" : filmStatusLabel(stage.status) || undefined,
+    statusLabel: local ? filmLocalWorkerStatusLabel() : filmStatusLabel(stage.status) || undefined,
     actions: extras?.actions ?? (local ? localRunAction(kind, stage.id) : undefined),
   })
 }
@@ -188,7 +189,7 @@ export function filmPipelineCards(
         cardKind: "breakdown",
         body:
           nextActionId === "run_breakdown"
-            ? "参考片已就绪，点参考片上的按钮开始拆解。完整拆解以后可在桌面跑。"
+            ? "参考片已就绪，点参考片上的按钮开始拆解。完整拆解以后本机执行。"
             : filmLocalWorkerHint("breakdown"),
       })
       cards.push(card)

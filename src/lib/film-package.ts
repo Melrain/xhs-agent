@@ -30,7 +30,7 @@ export const FILM_STAGE_LABELS: Record<FilmStageKind, string> = {
 
 export const FILM_PHASE_LABELS = FILM_STAGE_LABELS
 
-/** 生成类阶段走本机 grok，不走 Nest / XAI_API_KEY。本切片先标文案，不跑 worker。之后非 stub 拆解也归这里。 */
+/** 生成类阶段本机执行（优先 grok，否则 Grok Bot），产物写回 package。服务端不持 key。本切片先改文案。 */
 export const FILM_LOCAL_GENERATION_STAGES = [
   "script",
   "assets",
@@ -102,7 +102,7 @@ export const FILM_NEXT_ACTION_LABELS: Record<FilmNextActionId, string> = {
   ingest_reference: "贴参考片链接，或上传视频",
   run_breakdown: "拆解参考片",
   review_breakdown: "看看拆解对不对",
-  write_script: "剧本等本机执行",
+  write_script: "下一步本机执行",
 }
 
 export function isFilmNextActionId(value: unknown): value is FilmNextActionId {

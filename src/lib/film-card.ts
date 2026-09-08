@@ -64,7 +64,7 @@ export const FILM_CARD_LABELS: Record<FilmCardKind, string> = {
   reference: "参考片",
   breakdown: "拆解",
   script: "剧本",
-  stage: "等本机执行",
+  stage: "本机执行",
 }
 
 export const FILM_CARD_WIDTH: Record<FilmCardKind, number> = {
