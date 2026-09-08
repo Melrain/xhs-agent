@@ -2228,10 +2228,74 @@ select {
   font-size: 13px;
 }
 
+.film-view-toggle {
+  flex-shrink: 0;
+}
+
 .film-stage {
   position: relative;
   min-height: 0;
+  height: 100%;
   background: var(--bg-soft);
+}
+
+.film-follow {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.film-follow-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(560px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+.film-follow-intro h2,
+.film-follow-preflight h3 {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.film-follow-intro p,
+.film-follow-preflight p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.film-follow-kicker {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.film-follow-preflight {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-raise);
+  box-shadow: 0 8px 24px rgb(9 9 11 / 6%);
+}
+
+.film-follow-preflight .film-grok-status {
+  margin-left: 0;
+  margin-top: 8px;
+}
+
+.film-canvas-fallback {
+  margin: 24px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .film-canvas {
@@ -2290,6 +2354,10 @@ select {
   border-radius: 10px;
   overflow: hidden;
   background: var(--bg-raise);
+}
+
+.film-card-flow {
+  width: 100%;
 }
 
 .film-card-node {
