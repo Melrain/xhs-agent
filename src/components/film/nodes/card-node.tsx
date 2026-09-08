@@ -94,7 +94,8 @@ function FilmIngestForm({
       }}
     >
       <input
-        type="url"
+        type="text"
+        inputMode="url"
         value={url}
         disabled={disabled}
         placeholder="粘贴参考片链接"

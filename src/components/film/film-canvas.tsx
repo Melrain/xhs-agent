@@ -85,11 +85,9 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
           ? studioErrorMessage(pipeline.reject.error)
           : ""
   const error = localError || mutationError
-  const busy =
-    pipeline.addReference.isPending ||
-    pipeline.analyze.isPending ||
-    pipeline.approve.isPending ||
-    pipeline.reject.isPending
+  const ingestBusy = pipeline.addReference.isPending
+  const analyzeBusy = pipeline.analyze.isPending
+  const reviewBusy = pipeline.approve.isPending || pipeline.reject.isPending
 
   useLayoutEffect(() => {
     if (id) attachProject(id)
@@ -119,12 +117,16 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
 
   useEffect(() => {
     const nextNodes = cardsToNodes(cards).map((node) => {
+      const cardBusy =
+        node.data.busy ||
+        (node.data.kind === "reference" && (ingestBusy || analyzeBusy)) ||
+        (node.data.kind === "breakdown" && (analyzeBusy || reviewBusy))
       if (node.data.kind === "reference" && node.data.ingest) {
         return {
           ...node,
           data: {
             ...node.data,
-            busy: node.data.busy || busy,
+            busy: cardBusy,
             onIngestUrl: (url: string) => {
               void submitUrl(url)
             },
@@ -139,18 +141,18 @@ export function FilmCanvas({ project }: { project?: FilmProject }) {
           ...node,
           data: {
             ...node.data,
-            busy: node.data.busy || busy,
+            busy: cardBusy,
             onAction: (action: FilmCardAction) => {
               void runAction(action)
             },
           },
         }
       }
-      return { ...node, data: { ...node.data, busy: node.data.busy || busy } }
+      return { ...node, data: { ...node.data, busy: cardBusy } }
     })
     setNodes(nextNodes)
     setEdges(pipelineIds.length > 1 ? pipelineEdges(pipelineIds) : EMPTY_EDGES)
-  }, [busy, cards, pipelineIds])
+  }, [analyzeBusy, cards, ingestBusy, pipelineIds, reviewBusy])
 
   async function submitUrl(raw: string) {
     if (!id) return
