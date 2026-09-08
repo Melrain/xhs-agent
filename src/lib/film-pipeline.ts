@@ -163,7 +163,7 @@ export function filmPipelineCards(
           createFilmCard("reference", positionOf(id, index, layouts), {
             id,
             title: stage.label || "参考片",
-            body: "贴一条参考片链接，或上传视频。导入后会出现在画布上。",
+            body: "贴一条参考片链接，或上传视频。导入后会出现在这里。",
             locked: true,
             ingest: true,
             busy: isFilmProjectBusy(project) || stage.status === "running",
@@ -223,6 +223,23 @@ export function filmPipelineCards(
   })
 
   return { cards, pipelineIds }
+}
+
+const FOLLOW_CARD_KINDS = new Set(["brief", "reference", "breakdown", "script"])
+
+/** 跟拍页只展示参考片 → 拆解 → 剧本，后面的本机阶段留在画布。 */
+export function filmFollowCards(
+  project: FilmProject | undefined,
+  layouts: LayoutMap,
+  options?: { canAnalyze?: boolean; canGenerate?: boolean; analyzeGateLabel?: string },
+) {
+  const built = filmPipelineCards(project, layouts, options)
+  return {
+    cards: built.cards.filter((card) => FOLLOW_CARD_KINDS.has(card.kind)),
+    pipelineIds: built.pipelineIds.filter((id) =>
+      built.cards.some((card) => card.id === id && FOLLOW_CARD_KINDS.has(card.kind)),
+    ),
+  }
 }
 
 function breakdownCard(

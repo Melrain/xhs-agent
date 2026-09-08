@@ -1,4 +1,4 @@
-import { ReactFlowProvider } from "@xyflow/react"
+import { lazy, Suspense, useState } from "react"
 import { studioErrorMessage } from "@/lib/api/client"
 import { useFilmCurrentProject, useFilmGrokPreflight } from "@/hooks/use-film-project"
 import {
@@ -7,12 +7,17 @@ import {
   mergeFilmGrokStatus,
 } from "@/lib/film-grok-preflight"
 import { filmNextActionMessage, isFilmProjectBusy } from "@/lib/film-package"
-import { FilmCanvas } from "./film-canvas"
+import { FilmFollowPage } from "./film-follow-page"
 import { FilmGrokStatus } from "./film-grok-status"
 import { FilmProjectSwitcher } from "./film-project-switcher"
-import "@xyflow/react/dist/style.css"
+
+const FilmCanvas = lazy(async () => {
+  const mod = await import("./film-canvas")
+  return { default: mod.FilmCanvas }
+})
 
 export function FilmStudio() {
+  const [view, setView] = useState<"follow" | "canvas">("follow")
   const current = useFilmCurrentProject(true)
   const preflight = useFilmGrokPreflight(true)
   const project = current.data
@@ -23,6 +28,16 @@ export function FilmStudio() {
   const canAnalyze = canFilmAnalyze(grokStatus)
   const loginHint = project?.nextAction?.id === "grok_login" ? project.nextAction.message : ""
   const preflightError = preflight.error ? studioErrorMessage(preflight.error) : ""
+  const analyzeGateLabel =
+    preflight.isLoading && !grokStatus
+      ? "正在检查本机 grok…"
+      : loginHint || preflightError || (canAnalyze ? "" : filmGrokAuthLabel(grokStatus))
+
+  async function refreshPreflight() {
+    const result = await preflight.refetch()
+    if (result.error) throw result.error
+    return result.data
+  }
 
   return (
     <div className="workspace film">
@@ -30,6 +45,23 @@ export function FilmStudio() {
         <FilmProjectSwitcher current={project} enabled />
         {hint ? <span className="film-phase">{hint}</span> : null}
         {busy ? <span className="film-phase-busy">进行中</span> : null}
+        {view === "follow" ? (
+          <button
+            type="button"
+            className="ghost-btn compact film-view-toggle"
+            onClick={() => setView("canvas")}
+          >
+            打开画布
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="ghost-btn compact film-view-toggle"
+            onClick={() => setView("follow")}
+          >
+            返回跟拍
+          </button>
+        )}
         <FilmGrokStatus
           preflight={grokStatus}
           loading={preflight.isFetching}
@@ -41,22 +73,30 @@ export function FilmStudio() {
         />
       </div>
       <div className="film-stage">
-        <ReactFlowProvider>
-          <FilmCanvas
+        {view === "canvas" ? (
+          <Suspense fallback={<p className="film-canvas-fallback">正在打开画布…</p>}>
+            <FilmCanvas
+              project={project}
+              canAnalyze={canAnalyze}
+              analyzeGateLabel={analyzeGateLabel}
+              refreshPreflight={refreshPreflight}
+            />
+          </Suspense>
+        ) : (
+          <FilmFollowPage
             project={project}
             canAnalyze={canAnalyze}
-            analyzeGateLabel={
-              preflight.isLoading && !grokStatus
-                ? "正在检查本机 grok…"
-                : loginHint || preflightError || (canAnalyze ? "" : filmGrokAuthLabel(grokStatus))
-            }
-            refreshPreflight={async () => {
-              const result = await preflight.refetch()
-              if (result.error) throw result.error
-              return result.data
+            analyzeGateLabel={analyzeGateLabel}
+            grokStatus={grokStatus}
+            preflightLoading={preflight.isFetching}
+            preflightError={preflightError || undefined}
+            loginMessage={loginHint || undefined}
+            onRecheck={() => {
+              void preflight.refetch()
             }}
+            refreshPreflight={refreshPreflight}
           />
-        </ReactFlowProvider>
+        )}
         {error ? <p className="film-stage-error">{error}</p> : null}
       </div>
     </div>

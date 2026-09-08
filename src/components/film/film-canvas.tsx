@@ -3,14 +3,14 @@ import {
   applyNodeChanges,
   Background,
   ReactFlow,
+  ReactFlowProvider,
   useReactFlow,
   type Edge,
   type NodeChange,
 } from "@xyflow/react"
-import { studioErrorMessage } from "@/lib/api/client"
 import type { FilmProject } from "@/lib/api/film"
-import { useFilmPipelineMutations } from "@/hooks/use-film-project"
-import { canFilmAnalyze, filmGrokAuthLabel, type FilmGrokPreflight } from "@/lib/film-grok-preflight"
+import { useFilmPipelineActions } from "@/hooks/use-film-pipeline-actions"
+import { type FilmGrokPreflight } from "@/lib/film-grok-preflight"
 import {
   cardsToNodes,
   pipelineEdges,
@@ -19,13 +19,12 @@ import {
   type FilmCardNode as FilmCardFlowNode,
 } from "@/lib/film-card"
 import { readFilmLayout } from "@/lib/film-client-state"
-import { requestFilmLocalWorker } from "@/lib/film-local-worker"
-import { isFilmStageKind } from "@/lib/film-package"
 import { filmPipelineCards } from "@/lib/film-pipeline"
 import { useFilmStore } from "@/lib/film-store"
 import { FilmCanvasControls } from "./film-canvas-controls"
 import { FilmCardNode } from "./nodes/card-node"
 import { FilmPaneMenu, type FilmPaneMenuState } from "./pane-menu"
+import "@xyflow/react/dist/style.css"
 
 const EMPTY_CARDS: never[] = []
 const EMPTY_HIDDEN: never[] = []
@@ -33,16 +32,20 @@ const EMPTY_EDGES: Edge[] = []
 
 const NODE_TYPES = { filmCard: FilmCardNode }
 
-function isHttpUrl(value: string) {
-  try {
-    const parsed = new URL(value)
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
-  } catch {
-    return false
-  }
+export function FilmCanvas(props: {
+  project?: FilmProject
+  canAnalyze?: boolean
+  analyzeGateLabel?: string
+  refreshPreflight?: () => Promise<FilmGrokPreflight | undefined>
+}) {
+  return (
+    <ReactFlowProvider>
+      <FilmCanvasFlow {...props} />
+    </ReactFlowProvider>
+  )
 }
 
-export function FilmCanvas({
+function FilmCanvasFlow({
   project,
   canAnalyze = false,
   analyzeGateLabel = "",
@@ -63,7 +66,12 @@ export function FilmCanvas({
   const moveCard = useFilmStore((state) => state.moveCard)
   const removeCard = useFilmStore((state) => state.removeCard)
   const revealCard = useFilmStore((state) => state.revealCard)
-  const pipeline = useFilmPipelineMutations()
+  const pipeline = useFilmPipelineActions({
+    projectId: project?.id,
+    canAnalyze,
+    analyzeGateLabel,
+    refreshPreflight,
+  })
 
   const id = project?.id
   const attached = Boolean(id && projectId === id)
@@ -71,7 +79,6 @@ export function FilmCanvas({
   const activeLayouts = attached ? layouts : persistedLayout
   const activeNotes = attached ? notes : EMPTY_CARDS
   const activeHidden = attached ? hiddenIds : EMPTY_HIDDEN
-  const [localError, setLocalError] = useState("")
 
   const lastProjectId = useRef<string | undefined>(undefined)
   const lastRevealKey = useRef<string | undefined>(undefined)
@@ -92,27 +99,9 @@ export function FilmCanvas({
   const [edges, setEdges] = useState<Edge[]>(() => pipelineEdges(pipelineIds))
   const [menu, setMenu] = useState<FilmPaneMenuState | null>(null)
 
-  const mutationError = pipeline.addReference.error
-    ? studioErrorMessage(pipeline.addReference.error)
-    : pipeline.analyze.error
-      ? studioErrorMessage(pipeline.analyze.error)
-      : pipeline.approve.error
-        ? studioErrorMessage(pipeline.approve.error)
-        : pipeline.reject.error
-          ? studioErrorMessage(pipeline.reject.error)
-          : ""
-  const error = localError || mutationError
-  const ingestBusy = pipeline.addReference.isPending
-  const analyzeBusy = pipeline.analyze.isPending
-  const reviewBusy = pipeline.approve.isPending || pipeline.reject.isPending
-
   useLayoutEffect(() => {
     if (id) attachProject(id)
   }, [attachProject, id])
-
-  useEffect(() => {
-    setLocalError("")
-  }, [id])
 
   useEffect(() => {
     if (!id) {
@@ -134,21 +123,21 @@ export function FilmCanvas({
 
   useEffect(() => {
     const nextNodes = cardsToNodes(cards).map((node) => {
-      const cardBusy =
+      const busy =
         node.data.busy ||
-        (node.data.kind === "reference" && (ingestBusy || analyzeBusy)) ||
-        (node.data.kind === "breakdown" && (analyzeBusy || reviewBusy))
+        (node.data.kind === "reference" && (pipeline.ingestBusy || pipeline.analyzeBusy)) ||
+        (node.data.kind === "breakdown" && (pipeline.analyzeBusy || pipeline.reviewBusy))
       if (node.data.kind === "reference" && node.data.ingest) {
         return {
           ...node,
           data: {
             ...node.data,
-            busy: cardBusy,
+            busy,
             onIngestUrl: (url: string) => {
-              void submitUrl(url)
+              void pipeline.submitUrl(url)
             },
             onIngestFile: (file: File) => {
-              void submitFile(file)
+              void pipeline.submitFile(file)
             },
           },
         }
@@ -158,90 +147,18 @@ export function FilmCanvas({
           ...node,
           data: {
             ...node.data,
-            busy: cardBusy,
+            busy,
             onAction: (action: FilmCardAction) => {
-              void runAction(action)
+              void pipeline.runAction(action)
             },
           },
         }
       }
-      return { ...node, data: { ...node.data, busy: cardBusy } }
+      return { ...node, data: { ...node.data, busy } }
     })
     setNodes(nextNodes)
     setEdges(pipelineIds.length > 1 ? pipelineEdges(pipelineIds) : EMPTY_EDGES)
-  }, [analyzeBusy, cards, ingestBusy, pipelineIds, reviewBusy])
-
-  async function submitUrl(raw: string) {
-    if (!id) return
-    const url = raw.trim()
-    if (!isHttpUrl(url)) {
-      setLocalError("请贴有效的视频链接")
-      return
-    }
-    setLocalError("")
-    try {
-      await pipeline.addReference.mutateAsync({ projectId: id, url })
-    } catch {
-      // 卡片下方会显示接口错误
-    }
-  }
-
-  async function submitFile(file: File) {
-    if (!id) return
-    if (!file.type.startsWith("video/") && !/\.(mp4|mov|webm|mkv)$/i.test(file.name)) {
-      setLocalError("请选择视频文件")
-      return
-    }
-    setLocalError("")
-    try {
-      await pipeline.addReference.mutateAsync({ projectId: id, file })
-    } catch {
-      // 卡片下方会显示接口错误
-    }
-  }
-
-  async function runAction(action: FilmCardAction) {
-    if (!id) return
-    setLocalError("")
-    try {
-      if (action.id === "analyze" && action.refId) {
-        if (refreshPreflight) {
-          try {
-            const latest = await refreshPreflight()
-            if (!canFilmAnalyze(latest)) {
-              setLocalError(analyzeGateLabel || filmGrokAuthLabel(latest))
-              return
-            }
-          } catch {
-            setLocalError("还没检查到本机 grok")
-            return
-          }
-        } else if (!canAnalyze) {
-          setLocalError(analyzeGateLabel || filmGrokAuthLabel())
-          return
-        }
-        await pipeline.analyze.mutateAsync({ projectId: id, refId: action.refId })
-        return
-      }
-      if (action.id === "approve" && action.stageId) {
-        await pipeline.approve.mutateAsync({ projectId: id, stageId: action.stageId })
-        return
-      }
-      if (action.id === "reject" && action.stageId) {
-        await pipeline.reject.mutateAsync({ projectId: id, stageId: action.stageId })
-        return
-      }
-      if (action.id === "run_local" && !action.disabled && action.stageId && isFilmStageKind(action.stage)) {
-        await requestFilmLocalWorker({
-          projectId: id,
-          stageId: action.stageId,
-          stage: action.stage,
-        })
-      }
-    } catch {
-      // 卡片下方会显示接口错误
-    }
-  }
+  }, [cards, pipeline.analyzeBusy, pipeline.ingestBusy, pipeline.reviewBusy, pipelineIds])
 
   function onNodesChange(changes: NodeChange<FilmCardFlowNode>[]) {
     setNodes((current) => applyNodeChanges(changes, current))
@@ -304,7 +221,7 @@ export function FilmCanvas({
           setMenu(null)
         }}
       />
-      {error ? <p className="film-stage-error">{error}</p> : null}
+      {pipeline.error ? <p className="film-stage-error">{pipeline.error}</p> : null}
     </div>
   )
 }
