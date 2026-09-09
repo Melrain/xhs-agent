@@ -89,3 +89,27 @@ export function writeFilmHidden(projectId: string, hiddenIds: string[]) {
     // ignore
   }
 }
+
+const EXECUTOR_SOURCE_KEY = "film.executorSource"
+
+/** 本机偏好：film.executorSource，值为 "vps" | "local"。 */
+export function readFilmExecutorSourcePreference(): "vps" | "local" | undefined {
+  try {
+    const raw = window.localStorage.getItem(EXECUTOR_SOURCE_KEY)
+    return raw === "vps" || raw === "local" ? raw : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function writeFilmExecutorSourcePreference(source: "vps" | "local" | null) {
+  try {
+    if (!source) {
+      window.localStorage.removeItem(EXECUTOR_SOURCE_KEY)
+      return
+    }
+    window.localStorage.setItem(EXECUTOR_SOURCE_KEY, source)
+  } catch {
+    // ignore
+  }
+}

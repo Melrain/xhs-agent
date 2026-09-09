@@ -1,5 +1,5 @@
 import { backendFetch } from "@/lib/api/client"
-import { parseFilmGrokPreflight, parseFilmGrokThread, type FilmGrokThread } from "@/lib/film-grok-preflight"
+import { parseFilmGrokPreflight, parseFilmGrokThread, type FilmGrokThread, type FilmRunnerSource } from "@/lib/film-grok-preflight"
 import {
   asRecord,
   parseFilmNextAction,
@@ -36,12 +36,19 @@ export type FilmProjectSummary = {
   updatedAt?: string
 }
 
+export type FilmExecutor = {
+  source?: FilmRunnerSource
+}
+
 export type FilmProject = FilmProjectSummary & {
   brief: string
   phase: FilmPhase
   nextAction?: FilmNextAction
   package?: FilmPackage
   grok?: FilmGrokThread
+  /** 执行端锁定；字段名 source："vps" | "local" */
+  source?: FilmRunnerSource
+  executor?: FilmExecutor
 }
 
 function unwrapProject(value: unknown): unknown {
@@ -65,11 +72,25 @@ function parseSummary(value: unknown): FilmProjectSummary | null {
   }
 }
 
+function parseRunnerSource(value: unknown): FilmRunnerSource | undefined {
+  return value === "vps" || value === "local" ? value : undefined
+}
+
+function parseExecutor(value: unknown): FilmExecutor | undefined {
+  const record = asRecord(value)
+  if (!record) return undefined
+  const source = parseRunnerSource(record.source)
+  if (!source) return undefined
+  return { source }
+}
+
 function parseProject(value: unknown): FilmProject | null {
   const summary = parseSummary(value)
   if (!summary) return null
   const record = asRecord(unwrapProject(value))
   const brief = typeof record?.brief === "string" ? record.brief : ""
+  const source = parseRunnerSource(record?.source)
+  const executor = parseExecutor(record?.executor)
   return {
     ...summary,
     brief,
@@ -77,6 +98,8 @@ function parseProject(value: unknown): FilmProject | null {
     nextAction: parseFilmNextAction(record?.nextAction),
     package: parseFilmPackage(record?.package),
     grok: parseFilmGrokThread(record?.grok),
+    ...(source ? { source } : {}),
+    ...(executor ? { executor } : {}),
   }
 }
 
@@ -156,6 +179,7 @@ export async function deleteFilmProject(projectId: string, options?: { signal?: 
   })
 }
 
+/** Nest HTTP：VPS Grok CLI preflight 运输层（GrokCli/vps 调用；非本机探测）。 */
 export async function getFilmGrokPreflight(options?: { signal?: AbortSignal }) {
   return parseFilmGrokPreflight(
     await backendFetch<unknown>("/api/backend/internal/film/grok/preflight", {
@@ -193,6 +217,7 @@ export async function addFilmReference(
   )
 }
 
+/** Nest HTTP：VPS Grok CLI 拆解（GrokCli/vps 调用）。 */
 export async function analyzeFilmReference(
   projectId: string,
   refId: string,

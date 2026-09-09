@@ -3,7 +3,7 @@ import { studioErrorMessage } from "@/lib/api/client"
 import { useFilmPipelineMutations } from "@/hooks/use-film-project"
 import type { FilmCardAction } from "@/lib/film-card"
 import { canFilmAnalyze, filmGrokAuthLabel, type FilmGrokPreflight } from "@/lib/film-grok-preflight"
-import { requestFilmLocalWorker } from "@/lib/film-local-worker"
+import { selectFilmRunner } from "@/lib/film/runner"
 import { isFilmStageKind } from "@/lib/film-package"
 
 function isHttpUrl(value: string) {
@@ -105,7 +105,8 @@ export function useFilmPipelineActions({
         return
       }
       if (action.id === "run_local" && !action.disabled && action.stageId && isFilmStageKind(action.stage)) {
-        await requestFilmLocalWorker({
+        // 本机执行按钮固定走 GrokCli/local；默认拆解仍由项目 source 解析（默认 vps）
+        await selectFilmRunner("local").runStage({
           projectId,
           stageId: action.stageId,
           stage: action.stage,

@@ -2,7 +2,6 @@ import { useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   addFilmReference,
-  analyzeFilmReference,
   approveFilmStage,
   createFilmProject,
   deleteFilmProject,
@@ -11,7 +10,6 @@ import {
   filmProjectsQueryKey,
   FILM_QUERY_KEY,
   getCurrentFilmProject,
-  getFilmGrokPreflight,
   listFilmProjects,
   openFilmProject,
   rejectFilmStage,
@@ -20,6 +18,12 @@ import {
 } from "@/lib/api/film"
 import { getStoredUser } from "@/lib/auth/tokens"
 import { clearFilmHidden, clearFilmLayout } from "@/lib/film-client-state"
+import {
+  getDefaultFilmRunner,
+  getFilmRunnerForProject,
+  resolveFilmRunnerSource,
+  type FilmRunnerSource,
+} from "@/lib/film/runner"
 import { isFilmProjectBusy } from "@/lib/film-package"
 import { useFilmStore } from "@/lib/film-store"
 
@@ -55,10 +59,18 @@ export function useFilmCurrentProject(enabled: boolean) {
   return query
 }
 
-export function useFilmGrokPreflight(enabled: boolean) {
+/** 经 FilmRunner / GrokCli：默认 VPS；若项目锁定 source 则跟锁定。 */
+export function useFilmGrokPreflight(
+  enabled: boolean,
+  project?: FilmProject | null,
+) {
+  const source: FilmRunnerSource = resolveFilmRunnerSource(project)
   return useQuery({
-    queryKey: filmGrokPreflightQueryKey(),
-    queryFn: ({ signal }) => getFilmGrokPreflight({ signal }),
+    queryKey: [...filmGrokPreflightQueryKey(), source] as const,
+    queryFn: ({ signal }) =>
+      (project ? getFilmRunnerForProject(project) : getDefaultFilmRunner()).preflight({
+        signal,
+      }),
     enabled,
     staleTime: 15_000,
     refetchOnWindowFocus: true,
@@ -126,6 +138,9 @@ export function useFilmPipelineMutations() {
     void queryClient.invalidateQueries({ queryKey: filmProjectsQueryKey(userId) })
   }
 
+  const currentProject = () =>
+    userId ? queryClient.getQueryData<FilmProject>(filmCurrentQueryKey(userId)) : undefined
+
   return {
     addReference: useMutation({
       mutationFn: (input: { projectId: string } & ({ url: string } | { file: File })) => {
@@ -135,8 +150,10 @@ export function useFilmPipelineMutations() {
       onSuccess: remember,
     }),
     analyze: useMutation({
-      mutationFn: (input: { projectId: string; refId: string }) =>
-        analyzeFilmReference(input.projectId, input.refId),
+      mutationFn: (input: { projectId: string; refId: string }) => {
+        const runner = getFilmRunnerForProject(currentProject())
+        return runner.analyze(input.projectId, input.refId)
+      },
       onSuccess: remember,
     }),
     approve: useMutation({

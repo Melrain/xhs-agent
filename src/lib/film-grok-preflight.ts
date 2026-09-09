@@ -1,6 +1,8 @@
 import { asRecord } from "@/lib/film-package"
 
-/** GET /api/backend/internal/film/grok/preflight — 最终字段。 */
+export type FilmRunnerSource = "vps" | "local"
+
+/** GET /api/backend/internal/film/grok/preflight — 最终字段；runner 会补上 source。 */
 export type FilmGrokPreflight = {
   installed: boolean
   bin?: string
@@ -9,6 +11,7 @@ export type FilmGrokPreflight = {
   detail: string
   ffmpegOk?: boolean
   whisperOk?: boolean
+  source: FilmRunnerSource
 }
 
 /** 项目/对话线程上的可选摘要，给顶栏用。 */
@@ -35,20 +38,28 @@ function asOptionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined
 }
 
-export function emptyFilmGrokPreflight(): FilmGrokPreflight {
+function asSource(value: unknown): FilmRunnerSource | undefined {
+  return value === "vps" || value === "local" ? value : undefined
+}
+
+export function emptyFilmGrokPreflight(
+  source: FilmRunnerSource = "vps",
+): FilmGrokPreflight {
   return {
     installed: false,
     authFile: false,
     authOk: false,
     detail: "",
+    source,
   }
 }
 
+/** Nest 响应解析；未带 source 时默认 vps（HTTP 本身就是 VPS 运输）。 */
 export function parseFilmGrokPreflight(value: unknown): FilmGrokPreflight {
   const record = asRecord(value)
   const nested = asRecord(record?.data) ?? asRecord(record?.preflight)
   const row = nested ?? record
-  if (!row) return emptyFilmGrokPreflight()
+  if (!row) return emptyFilmGrokPreflight("vps")
   return {
     installed: asBool(row.installed),
     bin: asOptionalString(row.bin),
@@ -57,6 +68,7 @@ export function parseFilmGrokPreflight(value: unknown): FilmGrokPreflight {
     detail: asDisplay(row.detail),
     ffmpegOk: asOptionalBool(row.ffmpegOk),
     whisperOk: asOptionalBool(row.whisperOk),
+    source: asSource(row.source) ?? "vps",
   }
 }
 
@@ -82,6 +94,7 @@ export function mergeFilmGrokStatus(
       detail: preflight.detail.trim() ? preflight.detail : thread?.detail ?? "",
       ffmpegOk: preflight.ffmpegOk,
       whisperOk: preflight.whisperOk,
+      source: preflight.source,
     }
   }
   if (!thread) return undefined
@@ -90,6 +103,7 @@ export function mergeFilmGrokStatus(
     authFile: thread.authOk,
     authOk: thread.authOk,
     detail: thread.detail,
+    source: "vps",
   }
 }
 

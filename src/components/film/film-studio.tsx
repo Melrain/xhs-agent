@@ -19,8 +19,8 @@ const FilmCanvas = lazy(async () => {
 export function FilmStudio() {
   const [view, setView] = useState<"follow" | "canvas">("follow")
   const current = useFilmCurrentProject(true)
-  const preflight = useFilmGrokPreflight(true)
   const project = current.data
+  const preflight = useFilmGrokPreflight(true, project)
   const error = current.error ? studioErrorMessage(current.error) : ""
   const hint = project ? filmNextActionMessage(project) : ""
   const busy = isFilmProjectBusy(project)

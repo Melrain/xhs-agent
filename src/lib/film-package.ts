@@ -162,6 +162,10 @@ export type FilmPackage = {
   stages: FilmStage[]
   references: FilmReference[]
   breakdown: FilmBreakdownItem[]
+  /** 执行端锁定；字段名 source，值 "vps" | "local" */
+  source?: "vps" | "local"
+  /** 兼容别名；解析时与 source 同契约 */
+  executorSource?: "vps" | "local"
 }
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
@@ -238,13 +242,21 @@ function parseList<T>(value: unknown, parseOne: (item: unknown) => T | null): T[
   })
 }
 
+function parseExecutorSource(value: unknown): "vps" | "local" | undefined {
+  return value === "vps" || value === "local" ? value : undefined
+}
+
 export function parseFilmPackage(value: unknown): FilmPackage | undefined {
   const record = asRecord(value)
   if (!record) return undefined
+  const source = parseExecutorSource(record.source)
+  const executorSource = parseExecutorSource(record.executorSource)
   return {
     stages: parseList(record.stages, parseStage),
     references: parseList(record.references, parseReference),
     breakdown: parseList(record.breakdown, parseBreakdownItem),
+    ...(source ? { source } : {}),
+    ...(executorSource ? { executorSource } : {}),
   }
 }
 

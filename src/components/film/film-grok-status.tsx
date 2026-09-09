@@ -1,4 +1,5 @@
 import type { FilmGrokPreflight } from "@/lib/film-grok-preflight"
+import { filmRunnerSourceLabel } from "@/lib/film/runner"
 import {
   canFilmAnalyze,
   filmGrokAuthKind,
@@ -29,6 +30,9 @@ export function FilmGrokStatus({
   return (
     <div className={`film-grok-status ${tone}`} title={preflight?.bin || undefined}>
       <span className="film-grok-status-label">{label}</span>
+      {preflight?.source ? (
+        <span className="film-grok-source">{filmRunnerSourceLabel(preflight.source)}</span>
+      ) : null}
       {kind === "ok" ? null : (
         <span className="sr-only">
           {kind === "missing" ? "请先安装 grok" : "请在终端执行 grok login"}
