@@ -23,6 +23,7 @@ import {
 } from "@/hooks/use-recruit-tasks"
 import { RecruitPromptTemplatePicker } from "@/components/RecruitPromptTemplatePicker"
 import { DEFAULT_RECRUIT_PROMPT } from "@/lib/recruit-prompt-templates"
+import { resolveDesktopMediaUrl } from "@/lib/media-src"
 import { mediaFileName, saveMediaFile } from "@/lib/save-media"
 import type {
   AspectRatio,
@@ -220,7 +221,9 @@ export function RecruitWorkspace() {
     const nextItems: CanvasItem[] = outputs.map((output) => ({
       id: crypto.randomUUID(),
       kind: requestMode === "i2v" || output.mimeType?.startsWith("video/") ? "video" : "image",
-      url: output.url,
+      url:
+        resolveDesktopMediaUrl(`recruit-output:${output.s3Key}`, output.url, output.s3Key) ??
+        output.url,
       s3Key: output.s3Key,
       prompt,
     }))
@@ -454,10 +457,7 @@ export function RecruitWorkspace() {
               </span>
               <textarea
                 value={t2iPrompt}
-                onChange={(event) => {
-                  clearMiddlePreview("t2i")
-                  setT2iPrompt(event.target.value)
-                }}
+                onChange={(event) => setT2iPrompt(event.target.value)}
               />
             </div>
             <div className="row">
@@ -888,5 +888,8 @@ function resolveImageError(input: {
 function hasUsableOutputs(
   outputs?: Array<{ url?: string; s3Key?: string } | null>,
 ): outputs is MediaResult[] {
-  return Boolean(outputs?.length && outputs.every((item) => item?.url && item?.s3Key))
+  return Boolean(
+    outputs?.length &&
+      outputs.every((item) => item && (item.s3Key || item.url)),
+  )
 }

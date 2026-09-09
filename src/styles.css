@@ -1098,6 +1098,7 @@ select {
 }
 
 .makeup-source-preview {
+  position: relative;
   display: grid;
   place-items: center;
   flex: 1;
@@ -1106,6 +1107,22 @@ select {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+}
+
+.makeup-source-preview.is-generating img {
+  filter: saturate(0.7);
+}
+
+.makeup-generating-mask {
+  position: absolute;
+  inset: auto 12px 12px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 92%);
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .makeup-source-preview img {

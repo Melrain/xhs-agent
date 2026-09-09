@@ -343,7 +343,7 @@ function assertImageResponse(result?: RecruitImageResponse, emptyMessage = "后�
   if (!result || !Array.isArray(result.outputs) || result.outputs.length === 0) {
     throw new StudioApiError(emptyMessage)
   }
-  if (!result.outputs.every((item) => item?.url && item?.s3Key)) {
+  if (!result.outputs.every((item) => item?.url || item?.s3Key)) {
     throw new StudioApiError("后端返回的媒体缺少地址")
   }
   return result

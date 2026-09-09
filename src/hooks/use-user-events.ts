@@ -9,9 +9,8 @@ import {
 } from "@/lib/api/characters"
 import { FILM_QUERY_KEY } from "@/lib/api/film"
 import {
-  FILM_UPDATED_EVENT,
-  LOOK_UPDATED_EVENT,
   buildUserEventsStreamUrl,
+  openUserEventsStream,
   parseFilmUpdatedEvent,
   parseUserEvent,
   type FilmUpdatedEvent,
@@ -34,7 +33,8 @@ type Options = {
  * heartbeat（约 20s 有名事件）故意不听；断线只标状态，不关 poll。
  * poll 仍是 fallback；SSE 只是加速。
  *
- * 桌面：EventSource 不能设 header → URL 带 ?access_token=；token 变化时重开。
+ * 桌面：不能靠 EventSource 设 header → URL 带 ?access_token=；Tauri 用 HTTP 插件读流。
+ * token 变化时重开。
  */
 export function useUserEvents({
   enabled,
@@ -56,7 +56,7 @@ export function useUserEvents({
   }, [])
 
   useEffect(() => {
-    if (!enabled || typeof EventSource === "undefined") {
+    if (!enabled) {
       setConnected(false)
       return
     }
@@ -68,7 +68,7 @@ export function useUserEvents({
     }
 
     let closed = false
-    let source: EventSource | null = null
+    let session: { close: () => void } | null = null
     let reopenTimer: ReturnType<typeof setTimeout> | undefined
     let attempt = 0
 
@@ -77,14 +77,14 @@ export function useUserEvents({
         clearTimeout(reopenTimer)
         reopenTimer = undefined
       }
-      if (source) {
-        source.close()
-        source = null
+      if (session) {
+        session.close()
+        session = null
       }
     }
 
-    const handleLookUpdated = (message: MessageEvent) => {
-      const event = parseUserEvent(message.data)
+    const handleLookUpdated = (raw: string) => {
+      const event = parseUserEvent(raw)
       if (!event) return
 
       void queryClient.invalidateQueries({
@@ -102,8 +102,8 @@ export function useUserEvents({
       onLookUpdatedRef.current?.(event)
     }
 
-    const handleFilmUpdated = (message: MessageEvent) => {
-      const event = parseFilmUpdatedEvent(message.data)
+    const handleFilmUpdated = (raw: string) => {
+      const event = parseFilmUpdatedEvent(raw)
       if (!event) return
 
       // filmProjectsQueryKey / filmCurrentQueryKey 按 user 分片；根 invalidate 即可
@@ -115,29 +115,25 @@ export function useUserEvents({
       if (closed) return
       tearDown()
 
-      const next = new EventSource(streamUrl)
-      source = next
-
-      next.addEventListener(LOOK_UPDATED_EVENT, handleLookUpdated as EventListener)
-      next.addEventListener(FILM_UPDATED_EVENT, handleFilmUpdated as EventListener)
-
-      next.onopen = () => {
-        if (closed || source !== next) return
-        attempt = 0
-        setConnected(true)
-      }
-
-      // 浏览器会自动重连；这里记断线并偶尔手动 close+reopen，poll 继续跑。
-      next.onerror = () => {
-        if (closed || source !== next) return
-        setConnected(false)
-        next.close()
-        source = null
-        const delay =
-          REOPEN_BACKOFF_MS[Math.min(attempt, REOPEN_BACKOFF_MS.length - 1)]
-        attempt += 1
-        reopenTimer = setTimeout(open, delay)
-      }
+      session = openUserEventsStream(accessToken, {
+        onLookUpdated: handleLookUpdated,
+        onFilmUpdated: handleFilmUpdated,
+        onOpen: () => {
+          if (closed) return
+          attempt = 0
+          setConnected(true)
+        },
+        onError: () => {
+          if (closed) return
+          setConnected(false)
+          session?.close()
+          session = null
+          const delay =
+            REOPEN_BACKOFF_MS[Math.min(attempt, REOPEN_BACKOFF_MS.length - 1)]
+          attempt += 1
+          reopenTimer = setTimeout(open, delay)
+        },
+      })
     }
 
     open()

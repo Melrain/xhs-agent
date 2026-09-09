@@ -12,7 +12,7 @@ import {
   useVanityUserRefs,
 } from "@/hooks/use-vanity-refs"
 import { useCharacterMutations, useCharacters, useLooks } from "@/hooks/use-characters"
-import { useUserEvents } from "@/hooks/use-user-events"
+import { useLiveEventsGate } from "@/lib/live-events-gate"
 import {
   draftFromLook,
   hasCustomVanityChip,
@@ -77,7 +77,15 @@ export function MakeupWorkspace() {
     mutations.retry.isPending ||
     looks.some((look) => look.status === "pending") ||
     cards.some((card) => card.pendingCount > 0)
-  useUserEvents({ enabled: eventsEnabled })
+  const setMakeupPending = useLiveEventsGate((state) => state.setMakeupPending)
+  useEffect(() => {
+    setMakeupPending(eventsEnabled)
+    return () => setMakeupPending(false)
+  }, [eventsEnabled, setMakeupPending])
+
+  const pendingLook = looks.find(
+    (look) => look.status === "pending" && (!selectedId || look.characterId === selectedId),
+  )
 
   useEffect(() => {
     if (charactersQuery.isPending) return
@@ -183,7 +191,8 @@ export function MakeupWorkspace() {
       <header className="makeup-toolbar">
         <div className="makeup-toolbar-meta">
           <p className={notice ? "status-text" : "status-text makeup-toolbar-hint"}>
-            {notice ?? "选一张脸，再选妆造和服装参考后出图。"}
+            {notice ??
+              (generateBusy ? "正在出图…" : "选一张脸，再选妆造和服装参考后出图。")}
           </p>
           {notice ? (
             <button type="button" className="ghost-btn compact" onClick={() => setNotice(undefined)}>
@@ -257,12 +266,15 @@ export function MakeupWorkspace() {
               event.target.value = ""
             }}
           />
-          <div className="makeup-source-preview">
+          <div className={generateBusy ? "makeup-source-preview is-generating" : "makeup-source-preview"}>
             {selected ? (
               <img src={selected.url} alt={selected.name} />
             ) : (
               <p className="status-text">{charactersQuery.isPending ? "加载中…" : "导入一张脸"}</p>
             )}
+            {generateBusy ? (
+              <p className="makeup-generating-mask">{pendingLook ? "生成中" : "出图中…"}</p>
+            ) : null}
           </div>
           {selected ? (
             <div className="makeup-source-meta">

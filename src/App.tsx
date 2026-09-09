@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query"
 import { useCloudAuth } from "@/lib/auth/use-cloud-auth"
+import { CHARACTERS_QUERY_KEY, LOOKS_QUERY_KEY } from "@/lib/api/characters"
+import { RECRUIT_ASSETS_QUERY_KEY } from "@/lib/api/recruit"
+import { VANITY_USER_REFS_KEY } from "@/hooks/use-vanity-refs"
+import { getAccessToken, subscribeAuthStorage } from "@/lib/auth/tokens"
 import { resetPresignedUrlCache } from "@/lib/media-url"
 import { ExecutorSourceSwitch } from "@/components/ExecutorSourceSwitch"
 import { useExecutorSource } from "@/hooks/use-executor-source"
+import { useUserEvents } from "@/hooks/use-user-events"
+import { useLiveEventsWanted } from "@/lib/live-events-gate"
 import { CloudGate } from "./shell/CloudGate"
 import { Sidebar } from "./shell/Sidebar"
 import { UpdateBar } from "./shell/UpdateBar"
@@ -27,6 +33,7 @@ const queryClient = new QueryClient({
 function useResetQueriesOnUserChange(userId: string | null) {
   const client = useQueryClient()
   const previousId = useRef<string | null | undefined>(undefined)
+  const previousToken = useRef<string | null | undefined>(undefined)
   useEffect(() => {
     if (previousId.current !== undefined && previousId.current !== userId) {
       client.clear()
@@ -34,6 +41,20 @@ function useResetQueriesOnUserChange(userId: string | null) {
     }
     previousId.current = userId
   }, [client, userId])
+
+  useEffect(() => {
+    previousToken.current = getAccessToken()
+    return subscribeAuthStorage(() => {
+      const token = getAccessToken()
+      if (previousToken.current === token) return
+      previousToken.current = token
+      resetPresignedUrlCache()
+      void client.invalidateQueries({ queryKey: CHARACTERS_QUERY_KEY })
+      void client.invalidateQueries({ queryKey: LOOKS_QUERY_KEY })
+      void client.invalidateQueries({ queryKey: RECRUIT_ASSETS_QUERY_KEY })
+      void client.invalidateQueries({ queryKey: VANITY_USER_REFS_KEY })
+    })
+  }, [client])
 }
 
 function AppShell() {
@@ -42,6 +63,8 @@ function AppShell() {
   const [executorSource, setExecutorSource] = useExecutorSource()
   const cloud = useCloudAuth()
   useResetQueriesOnUserChange(cloud.user?.id ?? null)
+  const liveEventsWanted = useLiveEventsWanted()
+  useUserEvents({ enabled: Boolean(cloud.signedIn) && liveEventsWanted })
   const meta = WORKSPACES.find((item) => item.id === workspace)
 
   useEffect(() => {

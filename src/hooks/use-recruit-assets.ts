@@ -6,6 +6,7 @@ import {
   listRecruitAssets,
   type RecruitAssetRecord,
 } from "@/lib/api/recruit"
+import { resolveDesktopMediaUrl } from "@/lib/media-src"
 import type { Asset, Mode } from "@/lib/types"
 
 function isModeOrigin(value: string): value is Mode {
@@ -16,7 +17,9 @@ export function toRecruitAsset(record: RecruitAssetRecord): Asset {
   return {
     id: record.id,
     kind: record.kind === "video" ? "video" : "image",
-    url: record.url,
+    url:
+      resolveDesktopMediaUrl(`recruit-asset:${record.id}`, record.url, record.s3Key) ??
+      record.url,
     s3Key: record.s3Key,
     origin: isModeOrigin(record.origin) ? record.origin : "t2i",
     prompt: record.prompt,
