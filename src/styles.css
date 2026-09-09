@@ -2497,16 +2497,22 @@ select {
 }
 
 
-.film-follow-source-pin {
+.film-follow-source-pin,
+.executor-source-switch {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin: 0;
+}
+
+.film-follow-source-pin {
   margin-top: 10px;
 }
 
 .film-follow-source-ok,
 .film-follow-source-blocked,
-.film-follow-source-chip {
+.film-follow-source-chip,
+.executor-source-chip {
   border-radius: 999px;
   padding: 3px 9px;
   font-size: 11px;
@@ -2525,28 +2531,40 @@ select {
   text-decoration: line-through;
 }
 
-.film-follow-source-chip {
+.film-follow-source-chip,
+.executor-source-chip {
   border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
   background: var(--bg-soft);
   color: var(--muted);
   cursor: pointer;
 }
 
-.film-follow-source-chip.is-active {
+.film-follow-source-chip.is-active,
+.executor-source-chip.is-active {
   background: color-mix(in srgb, var(--accent) 14%, #ffffff);
   color: var(--ink);
   border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-.film-follow-source-chip:disabled {
+.film-follow-source-chip:disabled,
+.executor-source-chip:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-.film-follow-source-lock {
+.film-follow-source-lock,
+.executor-source-lock {
   font-size: 11px;
   color: var(--muted);
   align-self: center;
+}
+
+.topbar-executor-source {
+  flex-shrink: 0;
+}
+
+.makeup-executor-source {
+  flex-shrink: 0;
 }
 
 .film-follow-running {

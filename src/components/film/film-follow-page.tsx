@@ -26,6 +26,7 @@ import {
   isFilmProjectBusy,
 } from "@/lib/film-package"
 import { filmFollowCards } from "@/lib/film-pipeline"
+import { ExecutorSourceSwitch } from "@/components/ExecutorSourceSwitch"
 import { FilmCardArticle } from "./film-card-article"
 import { FilmGrokStatus } from "./film-grok-status"
 
@@ -169,29 +170,13 @@ export function FilmFollowPage({
           <p>
             {`只验证拆解：优先上传视频 → 检查 ${endpointLabel}（${filmRunnerSourceLabel(source)}）→ 核对镜号 / 画面 / 对白。本机可切换；走本机时用本机 grok / ffmpeg / whisper 真实拆解。剧本与后续生成先收起。`}
           </p>
-          <p className="film-follow-source-pin" aria-label="执行端">
-            <button
-              type="button"
-              className={`film-follow-source-chip${source === "vps" ? " is-active" : ""}`}
-              aria-pressed={source === "vps"}
-              disabled={sourceLocked && source !== "vps"}
-              onClick={() => selectSource("vps")}
-            >
-              走 VPS
-            </button>
-            <button
-              type="button"
-              className={`film-follow-source-chip${source === "local" ? " is-active" : ""}`}
-              aria-pressed={source === "local"}
-              disabled={sourceLocked && source !== "local"}
-              onClick={() => selectSource("local")}
-            >
-              走本机
-            </button>
-            {sourceLocked ? (
-              <span className="film-follow-source-lock">项目已锁定执行端</span>
-            ) : null}
-          </p>
+          <ExecutorSourceSwitch
+            className="film-follow-source-pin"
+            value={source}
+            locked={sourceLocked}
+            platform="desktop"
+            onChange={selectSource}
+          />
         </header>
 
         {briefCards.map(renderCard)}

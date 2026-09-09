@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ExecutorSourceSwitch } from "@/components/ExecutorSourceSwitch"
+import { useExecutorSource } from "@/hooks/use-executor-source"
 import { studioErrorMessage } from "@/lib/api/client"
 import { toVanityUserRef } from "@/lib/api/vanity-refs"
 import type { CharacterCard, LookCard } from "@/lib/api/characters"
@@ -10,6 +12,7 @@ import {
   useVanityUserRefs,
 } from "@/hooks/use-vanity-refs"
 import { useCharacterMutations, useCharacters, useLooks } from "@/hooks/use-characters"
+import { useUserEvents } from "@/hooks/use-user-events"
 import {
   draftFromLook,
   hasCustomVanityChip,
@@ -32,6 +35,7 @@ import {
 } from "@/lib/vanity-refs"
 
 export function MakeupWorkspace() {
+  const [executorSource, setExecutorSource] = useExecutorSource()
   const [selectedId, setSelectedId] = useState<string>()
   const [scope, setScope] = useState<"current" | "all">("current")
   const charactersQuery = useCharacters()
@@ -60,6 +64,21 @@ export function MakeupWorkspace() {
   const selected = cards.find((card) => card.id === selectedId)
   const looks = looksEnabled ? looksQuery.data?.looks ?? [] : []
 
+  const hasPendingGenerate = Boolean(
+    selectedId &&
+      looks.some((look) => look.status === "pending" && look.characterId === selectedId),
+  )
+  const generateBusy =
+    mutations.generate.isPending || mutations.retry.isPending || hasPendingGenerate
+
+  // 入队请求进行中也订 SSE；断线时仍靠 use-characters 的 2s poll
+  const eventsEnabled =
+    mutations.generate.isPending ||
+    mutations.retry.isPending ||
+    looks.some((look) => look.status === "pending") ||
+    cards.some((card) => card.pendingCount > 0)
+  useUserEvents({ enabled: eventsEnabled })
+
   useEffect(() => {
     if (charactersQuery.isPending) return
     if (selectedId && selected) return
@@ -86,7 +105,15 @@ export function MakeupWorkspace() {
   )
 
   async function generate() {
-    if (!selected || !canGenerateVanityLook(liveDraft) || mutations.generate.isPending) return
+    if (
+      !selected ||
+      !canGenerateVanityLook(liveDraft) ||
+      mutations.generate.isPending ||
+      mutations.retry.isPending ||
+      hasPendingGenerate
+    ) {
+      return
+    }
     try {
       await mutations.generate.mutateAsync({
         characterId: selected.id,
@@ -143,7 +170,7 @@ export function MakeupWorkspace() {
     }
   }
 
-  const generateLabel = mutations.generate.isPending
+  const generateLabel = generateBusy
     ? "出图中…"
     : !selected
       ? "先选一张脸"
@@ -165,6 +192,13 @@ export function MakeupWorkspace() {
           ) : null}
         </div>
         <div className="makeup-toolbar-actions">
+          <ExecutorSourceSwitch
+            className="makeup-executor-source"
+            value={executorSource}
+            platform="desktop"
+            showTip={executorSource === "local"}
+            onChange={setExecutorSource}
+          />
           <input
             className="makeup-refine"
             value={liveDraft.refine}
@@ -196,7 +230,7 @@ export function MakeupWorkspace() {
           <button
             type="button"
             className="primary-btn"
-            disabled={!selected || !canGenerateVanityLook(liveDraft) || mutations.generate.isPending}
+            disabled={!selected || !canGenerateVanityLook(liveDraft) || generateBusy}
             onClick={() => void generate()}
           >
             {generateLabel}

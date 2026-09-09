@@ -1,5 +1,5 @@
 import type { FilmProject } from "@/lib/api/film"
-import { readFilmExecutorSourcePreference } from "@/lib/film-client-state"
+import { readExecutorSourcePreference } from "@/lib/executor-source"
 import type { FilmGrokPreflight, FilmRunnerSource } from "@/lib/film-grok-preflight"
 import type { FilmStageKind } from "@/lib/film-package"
 import {
@@ -56,14 +56,14 @@ export type FilmRunnerSourceInput = {
 /**
  * 锁定读取顺序（字段名始终为 source）：
  * project.source → executor.source → package.source / package.executorSource
- * → 本机偏好 film.executorSource → 默认 vps
+ * → 本机偏好 r7.executorSource（legacy film.executorSource）→ 默认 vps
  */
 export function resolveFilmRunnerSource(project?: FilmRunnerSourceInput): FilmRunnerSource {
   if (isFilmRunnerSource(project?.source)) return project.source
   if (isFilmRunnerSource(project?.executor?.source)) return project.executor.source
   if (isFilmRunnerSource(project?.package?.source)) return project.package.source
   if (isFilmRunnerSource(project?.package?.executorSource)) return project.package.executorSource
-  const preference = readFilmExecutorSourcePreference()
+  const preference = readExecutorSourcePreference()
   if (preference) return preference
   return DEFAULT_FILM_RUNNER_SOURCE
 }

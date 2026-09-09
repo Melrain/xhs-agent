@@ -90,29 +90,11 @@ export function writeFilmHidden(projectId: string, hiddenIds: string[]) {
   }
 }
 
-const EXECUTOR_SOURCE_KEY = "film.executorSource"
-
-/** 本机偏好：film.executorSource，值为 "vps" | "local"。 */
-export function readFilmExecutorSourcePreference(): "vps" | "local" | undefined {
-  try {
-    const raw = window.localStorage.getItem(EXECUTOR_SOURCE_KEY)
-    return raw === "vps" || raw === "local" ? raw : undefined
-  } catch {
-    return undefined
-  }
-}
-
-export function writeFilmExecutorSourcePreference(source: "vps" | "local" | null) {
-  try {
-    if (!source) {
-      window.localStorage.removeItem(EXECUTOR_SOURCE_KEY)
-      return
-    }
-    window.localStorage.setItem(EXECUTOR_SOURCE_KEY, source)
-  } catch {
-    // ignore
-  }
-}
+/** @deprecated Prefer `@/lib/executor-source` — global key `r7.executorSource` (legacy `film.executorSource` read fallback). */
+export {
+  readExecutorSourcePreference as readFilmExecutorSourcePreference,
+  writeExecutorSourcePreference as writeFilmExecutorSourcePreference,
+} from "@/lib/executor-source"
 
 const LOCAL_MEDIA_PREFIX = "film-local-media:"
 

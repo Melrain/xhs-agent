@@ -1,11 +1,17 @@
-import { lazy, Suspense, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { studioErrorMessage } from "@/lib/api/client"
 import { filmGrokPreflightQueryKey } from "@/lib/api/film"
-import { useFilmCurrentProject, useFilmGrokPreflight } from "@/hooks/use-film-project"
 import {
-  writeFilmExecutorSourcePreference,
-} from "@/lib/film-client-state"
+  currentFilmUserId,
+  useFilmCurrentProject,
+  useFilmGrokPreflight,
+} from "@/hooks/use-film-project"
+import { useUserEvents } from "@/hooks/use-user-events"
+import {
+  subscribeExecutorSourcePreference,
+  writeExecutorSourcePreference,
+} from "@/lib/executor-source"
 import {
   canFilmAnalyze,
   filmAnalyzeGateReason,
@@ -15,7 +21,11 @@ import {
   type FilmRunnerSource,
 } from "@/lib/film-grok-preflight"
 import { resolveFilmRunnerSource } from "@/lib/film/runner"
-import { filmNextActionMessage, isFilmProjectBusy } from "@/lib/film-package"
+import {
+  filmIsAnalyzing,
+  filmNextActionMessage,
+  isFilmProjectBusy,
+} from "@/lib/film-package"
 import { FilmFollowPage } from "./film-follow-page"
 import { FilmGrokStatus } from "./film-grok-status"
 import { FilmProjectSwitcher } from "./film-project-switcher"
@@ -29,6 +39,13 @@ export function FilmStudio() {
   const [view, setView] = useState<"follow" | "canvas">("follow")
   const [sourceEpoch, setSourceEpoch] = useState(0)
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    return subscribeExecutorSourcePreference(() => {
+      setSourceEpoch((value) => value + 1)
+      void queryClient.invalidateQueries({ queryKey: filmGrokPreflightQueryKey() })
+    })
+  }, [queryClient])
   const current = useFilmCurrentProject(true)
   const project = current.data
   const preflight = useFilmGrokPreflight(true, project)
@@ -55,6 +72,11 @@ export function FilmStudio() {
   const projectLocksSource = Boolean(
     project?.source || project?.executor?.source || project?.package?.source || project?.package?.executorSource,
   )
+  const ready = Boolean(currentFilmUserId())
+  // VPS 解析中才订 Nest SSE；本机 analyze 不订（断线仍靠 2s poll）
+  useUserEvents({
+    enabled: ready && filmIsAnalyzing(project) && runnerSource === "vps",
+  })
 
   async function refreshPreflight() {
     const result = await preflight.refetch()
@@ -63,9 +85,7 @@ export function FilmStudio() {
   }
 
   function handleRunnerSourceChange(next: FilmRunnerSource) {
-    writeFilmExecutorSourcePreference(next)
-    setSourceEpoch((value) => value + 1)
-    void queryClient.invalidateQueries({ queryKey: filmGrokPreflightQueryKey() })
+    writeExecutorSourcePreference(next)
   }
 
   return (

@@ -396,6 +396,19 @@ export function filmAnalyzingRefId(project?: {
   return fromPkg || undefined
 }
 
+/** 跟拍解析中：analyzingRefId 有值，或 breakdown stage === running。 */
+export function filmIsAnalyzing(project?: {
+  analyzingRefId?: string
+  package?: FilmPackage
+}) {
+  if (!project) return false
+  if (filmAnalyzingRefId(project)) return true
+  const pkg = filmPackageOf(project)
+  return pkg.stages.some(
+    (stage) => (stage.id === "breakdown" || stage.label === "拆解") && stage.status === "running",
+  )
+}
+
 export function isFilmProjectBusy(project?: {
   analyzingRefId?: string
   package?: FilmPackage

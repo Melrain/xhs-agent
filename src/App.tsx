@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react"
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query"
 import { useCloudAuth } from "@/lib/auth/use-cloud-auth"
 import { resetPresignedUrlCache } from "@/lib/media-url"
+import { ExecutorSourceSwitch } from "@/components/ExecutorSourceSwitch"
+import { useExecutorSource } from "@/hooks/use-executor-source"
 import { CloudGate } from "./shell/CloudGate"
 import { Sidebar } from "./shell/Sidebar"
 import { UpdateBar } from "./shell/UpdateBar"
@@ -37,6 +39,7 @@ function useResetQueriesOnUserChange(userId: string | null) {
 function AppShell() {
   const [workspace, setWorkspace] = useState<WorkspaceId>("recruit")
   const [commentsMounted, setCommentsMounted] = useState(false)
+  const [executorSource, setExecutorSource] = useExecutorSource()
   const cloud = useCloudAuth()
   useResetQueriesOnUserChange(cloud.user?.id ?? null)
   const meta = WORKSPACES.find((item) => item.id === workspace)
@@ -56,6 +59,12 @@ function AppShell() {
               <h2>{meta?.label}</h2>
               <p>{meta?.hint}</p>
             </div>
+            <ExecutorSourceSwitch
+              className="topbar-executor-source"
+              value={executorSource}
+              platform="desktop"
+              onChange={setExecutorSource}
+            />
           </header>
         </div>
         <div className="app-stage">

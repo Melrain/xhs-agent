@@ -76,9 +76,11 @@ export function useRecruitImageJobs() {
     [tasksQuery.data],
   )
 
-  const t2iId = localTaskIds.t2i ?? latestFromList("t2i")?.taskId
-  const i2iId = localTaskIds.i2i ?? latestFromList("i2i")?.taskId
-  const i2vId = localTaskIds.i2v ?? latestFromList("i2v")?.taskId
+  // Session-local only: do not fall back to latest list task, or remount would
+  // rehydrate the middle preview from the last job.
+  const t2iId = localTaskIds.t2i
+  const i2iId = localTaskIds.i2i
+  const i2vId = localTaskIds.i2v
   const t2iJob = useRecruitJob(t2iId)
   const i2iJob = useRecruitJob(i2iId)
   const i2vJob = useRecruitJob(i2vId)
@@ -144,15 +146,8 @@ export function useRecruitImageJobs() {
   }, [])
 
   const startedAtFor = useCallback(
-    (mode: RecruitImageMode) => {
-      if (localStartedAt[mode]) return localStartedAt[mode]
-      const latest = latestFromList(mode)
-      const currentId = idFor(mode)
-      if (!latest || latest.taskId !== currentId) return undefined
-      const createdAt = Date.parse(latest.createdAt)
-      return Number.isNaN(createdAt) ? undefined : createdAt
-    },
-    [idFor, latestFromList, localStartedAt],
+    (mode: RecruitImageMode) => localStartedAt[mode],
+    [localStartedAt],
   )
 
   return {

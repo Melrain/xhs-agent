@@ -6,7 +6,6 @@ import {
   enqueueGenerateImage,
   enqueueGenerateVideo,
   listMediaModels,
-  listRecruitAssets,
   RECRUIT_ASSETS_QUERY_KEY,
   RECRUIT_TASKS_QUERY_KEY,
   loadOverlaySource,
@@ -174,68 +173,11 @@ export function RecruitWorkspace() {
       handledMissing.current.add(taskId)
       void (async () => {
         await queryClient.invalidateQueries({ queryKey: RECRUIT_ASSETS_QUERY_KEY })
-        const records = await queryClient.fetchQuery({
-          queryKey: RECRUIT_ASSETS_QUERY_KEY,
-          queryFn: listRecruitAssets,
-        })
-        const latest = records.find((record) => record.origin === imageMode)
-        if (latest?.url && latest.s3Key) {
-          applyGenerated(
-            [{ url: latest.url, s3Key: latest.s3Key, mimeType: latest.mimeType ?? "image/png" }],
-            imageMode,
-            latest.prompt,
-          )
-        } else {
-          setMissingJobError((current) => ({ ...current, [imageMode]: "任务已失效" }))
-        }
+        setMissingJobError((current) => ({ ...current, [imageMode]: "任务已失效" }))
         imageJobs.clearLocal(imageMode)
       })()
     }
   }, [imageJobs, imageJobs.i2iId, imageJobs.i2iJob.error, imageJobs.i2vId, imageJobs.i2vJob.error, imageJobs.t2iId, imageJobs.t2iJob.error, queryClient])
-
-  useEffect(() => {
-    for (const imageMode of imageJobs.modes) {
-      if (imageJobs.isBusy(imageMode)) continue
-      const latest = historyAssets.find((asset) => asset.origin === imageMode)
-      if (!latest) continue
-      setItemsByMode((current) => {
-        if ((current[imageMode]?.length ?? 0) > 0) return current
-        return {
-          ...current,
-          [imageMode]: [
-            {
-              id: latest.id,
-              kind: latest.kind,
-              url: latest.url,
-              s3Key: latest.s3Key,
-              prompt: latest.prompt,
-            },
-          ],
-        }
-      })
-    }
-  }, [historyAssets, imageJobs])
-
-  useEffect(() => {
-    if (overlayBusy) return
-    const latest = historyAssets.find((asset) => asset.origin === "text-overlay")
-    if (!latest) return
-    setItemsByMode((current) => {
-      if ((current["text-overlay"]?.length ?? 0) > 0) return current
-      return {
-        ...current,
-        "text-overlay": [
-          {
-            id: latest.id,
-            kind: "image",
-            url: latest.url,
-            s3Key: latest.s3Key,
-            prompt: latest.prompt,
-          },
-        ],
-      }
-    })
-  }, [historyAssets, overlayBusy])
 
   const startedAt = overlayBusy
     ? overlayStartedAt
@@ -254,6 +196,26 @@ export function RecruitWorkspace() {
     return () => window.clearInterval(timer)
   }, [busy, startedAt])
 
+  function clearMiddlePreview(targetMode: Mode = mode) {
+    setItemsByMode((current) => {
+      if ((current[targetMode]?.length ?? 0) === 0) return current
+      return { ...current, [targetMode]: [] }
+    })
+    if (targetMode === mode) setSelectedCanvasId(undefined)
+    if (isRecruitImageMode(targetMode) && !imageJobs.isBusy(targetMode)) {
+      const job = imageJobs.jobFor(targetMode).data
+      if (job?.status === "failed") {
+        setDismissedFailed((current) => ({ ...current, [targetMode]: job.taskId }))
+      }
+      imageJobs.clearLocal(targetMode)
+      setMissingJobError((current) => {
+        if (!(targetMode in current)) return current
+        const { [targetMode]: _removed, ...rest } = current
+        return rest
+      })
+    }
+  }
+
   function applyGenerated(outputs: MediaResult[], requestMode: Mode, prompt: string) {
     const nextItems: CanvasItem[] = outputs.map((output) => ({
       id: crypto.randomUUID(),
@@ -263,7 +225,6 @@ export function RecruitWorkspace() {
       prompt,
     }))
     setItemsByMode((current) => ({ ...current, [requestMode]: nextItems }))
-    setSelectedCanvasId(nextItems[0]?.id)
   }
 
   function addLocalFile(file: File, target: Mode) {
@@ -369,13 +330,13 @@ export function RecruitWorkspace() {
       setOverlayStartedAt(Date.now())
       setOverlayError(undefined)
       setSaveHint(null)
+      clearMiddlePreview("text-overlay")
       try {
         const blob = await bakeOverlayBlob(await loadOverlaySource(source), overlayStyle)
         if (requestId !== overlayRequestId.current) return
         const file = new File([blob], "overlay.png", { type: "image/png" })
-        const result = await uploadOverlayAsset({ file, prompt })
+        await uploadOverlayAsset({ file, prompt })
         if (requestId !== overlayRequestId.current) return
-        applyGenerated(result.outputs, "text-overlay", prompt)
         setOverlayPinned(true)
         void queryClient.invalidateQueries({ queryKey: RECRUIT_ASSETS_QUERY_KEY })
       } catch (error) {
@@ -392,6 +353,7 @@ export function RecruitWorkspace() {
 
     if (!isRecruitImageMode(mode)) return
     enqueuePrompts.current[mode] = prompt
+    clearMiddlePreview(mode)
     setDismissedFailed((current) => {
       const next = { ...current }
       delete next[mode]
@@ -483,9 +445,20 @@ export function RecruitWorkspace() {
             <div className="field">
               <span className="field-head">
                 提示词
-                <RecruitPromptTemplatePicker onFill={setT2iPrompt} />
+                <RecruitPromptTemplatePicker
+                  onFill={(prompt) => {
+                    clearMiddlePreview("t2i")
+                    setT2iPrompt(prompt)
+                  }}
+                />
               </span>
-              <textarea value={t2iPrompt} onChange={(event) => setT2iPrompt(event.target.value)} />
+              <textarea
+                value={t2iPrompt}
+                onChange={(event) => {
+                  clearMiddlePreview("t2i")
+                  setT2iPrompt(event.target.value)
+                }}
+              />
             </div>
             <div className="row">
               <label className="field">
