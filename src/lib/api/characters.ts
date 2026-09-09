@@ -1,4 +1,5 @@
-import { backendFetch } from "@/lib/api/client"
+import { backendFetch, StudioApiError } from "@/lib/api/client"
+import { asLookCards } from "@/lib/look-cache"
 import type { ImageQuality, ImageResolution } from "@/lib/types"
 
 export type LookStatus = "pending" | "ready" | "failed"
@@ -14,6 +15,7 @@ export type LookCard = {
   refine: string
   prompt: string
   url: string | null
+  s3Key?: string | null
   error: string | null
   createdAt: string
   updatedAt?: string
@@ -30,6 +32,7 @@ export type CharacterCard = {
   id: string
   name: string
   url: string
+  s3Key?: string | null
   fromLookId: string | null
   lookCount: number
   pendingCount: number
@@ -134,26 +137,30 @@ export function deleteCharacter(id: string) {
   })
 }
 
-export function generateLooks(
+export async function generateLooks(
   characterId: string,
   looks: LookRequest[],
   settings: RenderSettings,
 ) {
-  return backendFetch<LookCard[]>(path(`/characters/${characterId}/looks`), {
+  const body = await backendFetch<unknown>(path(`/characters/${characterId}/looks`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ looks, ...renderBody(settings) }),
     timeoutMs: TIMEOUT_MS,
   })
+  return asLookCards<LookCard>(body)
 }
 
-export function retryLook(lookId: string, settings: RenderSettings) {
-  return backendFetch<LookCard>(path(`/looks/${lookId}/retry`), {
+export async function retryLook(lookId: string, settings: RenderSettings) {
+  const body = await backendFetch<unknown>(path(`/looks/${lookId}/retry`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(renderBody(settings)),
     timeoutMs: TIMEOUT_MS,
   })
+  const look = asLookCards<LookCard>(body)[0]
+  if (!look) throw new StudioApiError("后端没有返回妆造卡")
+  return look
 }
 
 export function deleteLook(lookId: string) {

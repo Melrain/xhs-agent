@@ -30,16 +30,32 @@ import {
   type LookRequest,
   type RenderSettings,
 } from "@/lib/api/characters"
-import { reusePresignedUrl } from "@/lib/media-url"
+import {
+  asLookCards,
+  mergeCharacterCards,
+  mergeLookList,
+  pendingCharacterIdsFromLooks,
+} from "@/lib/look-cache"
+import { resolveDesktopMediaUrl } from "@/lib/media-src"
 
 /** 有卡在生成时贴着轮询，闲下来就退回到「预签名 URL 快过期了再刷一次」。 */
 const BUSY_POLL_MS = 2_000
 const IDLE_REFRESH_MS = 45 * 60 * 1000
 
 export function useCharacters() {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: CHARACTERS_QUERY_KEY,
-    queryFn: listCharacters,
+    queryFn: async () => {
+      const previous = queryClient.getQueryData<CharacterCard[]>(CHARACTERS_QUERY_KEY)
+      const incoming = await listCharacters()
+      const pendingIds = pendingCharacterIdsFromLooks(
+        queryClient
+          .getQueriesData<LookList>({ queryKey: LOOKS_QUERY_KEY })
+          .map(([, list]) => list),
+      )
+      return mergeCharacterCards(previous, incoming, pendingIds)
+    },
     staleTime: BUSY_POLL_MS,
     placeholderData: keepPreviousData,
     refetchOnMount: "always",
@@ -62,13 +78,20 @@ export function useCharacter(id: string) {
     refetchInterval: (query) =>
       hasPendingLook(query.state.data) ? BUSY_POLL_MS : IDLE_REFRESH_MS,
     retry: false,
+    select: stabilizeCharacterDetail,
   })
 }
 
 export function useLooks(characterId?: string, enabled = true) {
+  const queryClient = useQueryClient()
+  const key = looksQueryKey(characterId)
   return useQuery({
-    queryKey: looksQueryKey(characterId),
-    queryFn: () => listLooks(characterId),
+    queryKey: key,
+    queryFn: async () => {
+      const previous = queryClient.getQueryData<LookList>(key)
+      const incoming = await listLooks(characterId)
+      return mergeLookList(previous, incoming)
+    },
     enabled,
     staleTime: BUSY_POLL_MS,
     placeholderData: keepPreviousData,
@@ -83,8 +106,16 @@ export function useLooks(characterId?: string, enabled = true) {
 function stabilizeCharacterUrls(cards: CharacterCard[]) {
   return cards.map((card) => ({
     ...card,
-    url: reusePresignedUrl(`character:${card.id}`, card.url) ?? card.url,
+    url: resolveDesktopMediaUrl(`character:${card.id}`, card.url, card.s3Key) ?? card.url,
   }))
+}
+
+function stabilizeCharacterDetail(detail: CharacterDetail): CharacterDetail {
+  return {
+    ...detail,
+    url: resolveDesktopMediaUrl(`character:${detail.id}`, detail.url, detail.s3Key) ?? detail.url,
+    looks: stabilizeLookUrls(detail.looks),
+  }
 }
 
 function stabilizeLookList(list: LookList): LookList {
@@ -97,7 +128,7 @@ function stabilizeLookList(list: LookList): LookList {
 function stabilizeLookUrls(looks: LookCard[]) {
   return looks.map((look) => ({
     ...look,
-    url: reusePresignedUrl(`look:${look.id}`, look.url),
+    url: resolveDesktopMediaUrl(`look:${look.id}`, look.url, look.s3Key),
   }))
 }
 
@@ -107,11 +138,6 @@ function hasPendingLook(detail?: CharacterDetail) {
 
 function hasPendingLooks(looks?: LookCard[]) {
   return (looks ?? []).some((look) => look.status === "pending")
-}
-
-function asLookCards(created: LookCard[] | LookCard | null | undefined): LookCard[] {
-  if (!created) return []
-  return Array.isArray(created) ? created : [created]
 }
 
 /**
@@ -257,11 +283,13 @@ export function useCharacterMutations(characterId?: string) {
         settings: RenderSettings
       }) => generateLooks(input.characterId, input.looks, input.settings),
       onSuccess: async (created) => {
-        const looks = asLookCards(created)
+        const looks = asLookCards<LookCard>(created)
         await cancelStaleListFetches(queryClient)
         prependLooks(queryClient, looks)
         bumpCharacterPendingCounts(queryClient, looks)
-        await refresh()
+        // Do not await refetch: an in-flight/stale list must not replace optimistic pending.
+        // SSE + 2s poll (and mergeLookList) bring the ready row in.
+        void refresh()
       },
     }),
     retry: useMutation({
@@ -270,7 +298,7 @@ export function useCharacterMutations(characterId?: string) {
       onSuccess: async (look) => {
         await cancelStaleListFetches(queryClient)
         markLookPendingInCache(queryClient, look)
-        await refresh()
+        void refresh()
       },
     }),
     removeLook: useMutation({

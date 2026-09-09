@@ -10,6 +10,7 @@ export type VanityUserRefCard = {
   kind: VanityKind
   title: string
   url: string
+  s3Key?: string | null
   createdAt: string
 }
 

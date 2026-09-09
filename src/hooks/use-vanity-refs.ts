@@ -8,7 +8,7 @@ import {
   toVanityUserRef,
   uploadVanityUserRef,
 } from "@/lib/api/vanity-refs"
-import { reusePresignedUrl } from "@/lib/media-url"
+import { resolveDesktopMediaUrl } from "@/lib/media-src"
 import type { VanityKind, VanityRef } from "@/lib/vanity-refs"
 
 export const VANITY_USER_REFS_KEY = ["vanity-user-refs"] as const
@@ -32,7 +32,8 @@ export function useVanityUserRefs(kind: VanityKind) {
         toVanityUserRef({
           ...card,
           url:
-            reusePresignedUrl(`vanity-ref:${card.id}`, card.url) ?? card.url,
+            resolveDesktopMediaUrl(`vanity-ref:${card.id}`, card.url, card.s3Key) ??
+            card.url,
         }),
       ),
   })

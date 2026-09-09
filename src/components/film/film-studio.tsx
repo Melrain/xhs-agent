@@ -7,7 +7,7 @@ import {
   useFilmCurrentProject,
   useFilmGrokPreflight,
 } from "@/hooks/use-film-project"
-import { useUserEvents } from "@/hooks/use-user-events"
+import { useLiveEventsGate } from "@/lib/live-events-gate"
 import {
   subscribeExecutorSourcePreference,
   writeExecutorSourcePreference,
@@ -73,10 +73,12 @@ export function FilmStudio() {
     project?.source || project?.executor?.source || project?.package?.source || project?.package?.executorSource,
   )
   const ready = Boolean(currentFilmUserId())
+  const setFilmVpsAnalyzing = useLiveEventsGate((state) => state.setFilmVpsAnalyzing)
   // VPS 解析中才订 Nest SSE；本机 analyze 不订（断线仍靠 2s poll）
-  useUserEvents({
-    enabled: ready && filmIsAnalyzing(project) && runnerSource === "vps",
-  })
+  useEffect(() => {
+    setFilmVpsAnalyzing(ready && filmIsAnalyzing(project) && runnerSource === "vps")
+    return () => setFilmVpsAnalyzing(false)
+  }, [project, ready, runnerSource, setFilmVpsAnalyzing])
 
   async function refreshPreflight() {
     const result = await preflight.refetch()
