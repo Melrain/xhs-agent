@@ -4,8 +4,10 @@ import { useFilmCurrentProject, useFilmGrokPreflight } from "@/hooks/use-film-pr
 import {
   canFilmAnalyze,
   filmGrokAuthLabel,
+  filmGrokCheckingLabel,
   mergeFilmGrokStatus,
 } from "@/lib/film-grok-preflight"
+import { resolveFilmRunnerSource } from "@/lib/film/runner"
 import { filmNextActionMessage, isFilmProjectBusy } from "@/lib/film-package"
 import { FilmFollowPage } from "./film-follow-page"
 import { FilmGrokStatus } from "./film-grok-status"
@@ -25,12 +27,13 @@ export function FilmStudio() {
   const hint = project ? filmNextActionMessage(project) : ""
   const busy = isFilmProjectBusy(project)
   const grokStatus = mergeFilmGrokStatus(preflight.data, project?.grok)
+  const runnerSource = resolveFilmRunnerSource(project)
   const canAnalyze = canFilmAnalyze(grokStatus)
   const loginHint = project?.nextAction?.id === "grok_login" ? project.nextAction.message : ""
   const preflightError = preflight.error ? studioErrorMessage(preflight.error) : ""
   const analyzeGateLabel =
     preflight.isLoading && !grokStatus
-      ? "正在检查本机 grok…"
+      ? filmGrokCheckingLabel(runnerSource)
       : loginHint || preflightError || (canAnalyze ? "" : filmGrokAuthLabel(grokStatus))
 
   async function refreshPreflight() {
@@ -67,6 +70,7 @@ export function FilmStudio() {
           loading={preflight.isFetching}
           error={preflightError || undefined}
           loginMessage={!canAnalyze ? loginHint : undefined}
+          fallbackSource={runnerSource}
           onRecheck={() => {
             void preflight.refetch()
           }}
@@ -91,6 +95,7 @@ export function FilmStudio() {
             preflightLoading={preflight.isFetching}
             preflightError={preflightError || undefined}
             loginMessage={loginHint || undefined}
+            runnerSource={runnerSource}
             onRecheck={() => {
               void preflight.refetch()
             }}

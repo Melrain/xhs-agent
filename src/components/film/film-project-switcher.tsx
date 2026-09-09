@@ -73,6 +73,7 @@ export function FilmProjectSwitcher({
           type="button"
           title="重命名项目"
           className="film-project-name"
+          disabled={busy}
           onClick={() => {
             setDraft(current.title)
             setRenaming(true)
@@ -107,6 +108,7 @@ export function FilmProjectSwitcher({
                   key={item.id}
                   type="button"
                   role="menuitem"
+                  disabled={busy}
                   onClick={() => {
                     setMenuOpen(false)
                     if (item.id !== current.id) void mutations.open.mutateAsync(item.id)
@@ -120,6 +122,7 @@ export function FilmProjectSwitcher({
               <button
                 type="button"
                 role="menuitem"
+                disabled={busy}
                 onClick={() => {
                   setMenuOpen(false)
                   void mutations.create.mutateAsync(undefined)
@@ -132,6 +135,7 @@ export function FilmProjectSwitcher({
                 type="button"
                 role="menuitem"
                 className="danger"
+                disabled={busy}
                 onClick={() => {
                   setMenuOpen(false)
                   setConfirmDelete(true)
@@ -155,7 +159,12 @@ export function FilmProjectSwitcher({
               制作包和画布上的卡片都会清掉。
             </p>
             <div className="film-dialog-actions">
-              <button type="button" className="ghost-btn compact" onClick={() => setConfirmDelete(false)}>
+              <button
+                type="button"
+                className="ghost-btn compact"
+                disabled={mutations.remove.isPending}
+                onClick={() => setConfirmDelete(false)}
+              >
                 取消
               </button>
               <button
@@ -174,7 +183,7 @@ export function FilmProjectSwitcher({
       ) : null}
 
       {error ? (
-        <span className="sr-only" role="alert">
+        <span className="film-project-error" role="alert">
           {error}
         </span>
       ) : null}

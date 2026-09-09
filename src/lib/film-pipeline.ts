@@ -209,7 +209,7 @@ export function filmPipelineCards(
         canGenerate,
         body:
           nextActionId === "run_breakdown"
-            ? "参考片已就绪，点参考片上的按钮开始拆解。完整拆解以后本机 grok / grok bot 执行。"
+            ? "参考片已就绪，点参考片上的按钮开始拆解。拆解走当前执行端（默认走 VPS）。"
             : filmLocalWorkerHint("breakdown"),
       })
       cards.push(card)

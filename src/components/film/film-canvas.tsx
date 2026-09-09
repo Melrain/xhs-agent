@@ -11,6 +11,7 @@ import {
 import type { FilmProject } from "@/lib/api/film"
 import { useFilmPipelineActions } from "@/hooks/use-film-pipeline-actions"
 import { type FilmGrokPreflight } from "@/lib/film-grok-preflight"
+import { resolveFilmRunnerSource } from "@/lib/film/runner"
 import {
   cardsToNodes,
   pipelineEdges,
@@ -71,6 +72,7 @@ function FilmCanvasFlow({
     canAnalyze,
     analyzeGateLabel,
     refreshPreflight,
+    runnerSource: resolveFilmRunnerSource(project),
   })
 
   const id = project?.id

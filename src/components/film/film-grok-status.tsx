@@ -1,10 +1,13 @@
-import type { FilmGrokPreflight } from "@/lib/film-grok-preflight"
+import type { FilmGrokPreflight, FilmRunnerSource } from "@/lib/film-grok-preflight"
 import { filmRunnerSourceLabel } from "@/lib/film/runner"
 import {
   canFilmAnalyze,
   filmGrokAuthKind,
   filmGrokAuthLabel,
+  filmGrokCheckingLabel,
   filmGrokDetailText,
+  filmGrokEndpointLabel,
+  filmGrokMissingCheckLabel,
   filmGrokToolHints,
 } from "@/lib/film-grok-preflight"
 
@@ -13,25 +16,43 @@ export function FilmGrokStatus({
   loading,
   error,
   loginMessage,
+  fallbackSource,
   onRecheck,
 }: {
   preflight?: FilmGrokPreflight
   loading: boolean
   error?: string
   loginMessage?: string
+  /** 无 preflight 时仍展示执行端（默认 vps） */
+  fallbackSource?: FilmRunnerSource
   onRecheck: () => void
 }) {
+  const source = preflight?.source ?? fallbackSource
   const kind = filmGrokAuthKind(preflight)
-  const label = error ? "未检查到本机 grok" : loading && !preflight ? "正在检查本机 grok…" : filmGrokAuthLabel(preflight)
+  const label = error
+    ? filmGrokMissingCheckLabel(source)
+    : loading && !preflight
+      ? filmGrokCheckingLabel(source)
+      : filmGrokAuthLabel(preflight)
   const detail = loginMessage?.trim() || error || filmGrokDetailText(preflight)
   const hints = filmGrokToolHints(preflight)
-  const tone = error || !canFilmAnalyze(preflight) ? "is-bad" : "is-ok"
+  // Checking without a result is neutral — not an auth failure.
+  const tone =
+    error || (!loading && !canFilmAnalyze(preflight))
+      ? "is-bad"
+      : loading && !preflight
+        ? "is-checking"
+        : canFilmAnalyze(preflight)
+          ? "is-ok"
+          : "is-checking"
 
   return (
     <div className={`film-grok-status ${tone}`} title={preflight?.bin || undefined}>
       <span className="film-grok-status-label">{label}</span>
-      {preflight?.source ? (
-        <span className="film-grok-source">{filmRunnerSourceLabel(preflight.source)}</span>
+      {source ? (
+        <span className="film-grok-source" title={filmGrokEndpointLabel(source)}>
+          {filmRunnerSourceLabel(source)}
+        </span>
       ) : null}
       {kind === "ok" ? null : (
         <span className="sr-only">

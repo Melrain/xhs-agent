@@ -223,10 +223,11 @@ export function CreateNoteWizard({ initial, onDone, onCancel }: Props) {
   return (
     <div className="workspace notes-wizard">
       <header className="notes-composer-bar">
-        <button type="button" className="ghost-btn" onClick={onCancel}>
+        <button type="button" className="ghost-btn" disabled={completeBusy || copyBusy} onClick={onCancel}>
           返回列表
         </button>
         <div className="notes-composer-title">
+          <p className="notes-page-kicker">组装预览</p>
           <p className="section-label">{initial ? "编辑笔记" : "创建笔记"}</p>
           <p className={saveState === "error" ? "status-text error" : "status-text"}>
             {hint ?? saveHint ?? "左边选图，中间改文案，右边是预览。"}
@@ -268,7 +269,7 @@ export function CreateNoteWizard({ initial, onDone, onCancel }: Props) {
                   key={asset.id}
                   type="button"
                   className={isSelected ? "asset-item is-selected" : "asset-item"}
-                  disabled={atLimit}
+                  disabled={atLimit || completeBusy || copyBusy}
                   onClick={() => toggleAsset(asset.id)}
                 >
                   <img className="thumb" src={asset.url} alt="" />
@@ -398,7 +399,7 @@ export function CreateNoteWizard({ initial, onDone, onCancel }: Props) {
                     <button
                       type="button"
                       className="note-icon-btn"
-                      disabled={index === 0}
+                      disabled={completeBusy || copyBusy || index === 0}
                       onClick={() => moveSelected(index, -1)}
                       aria-label="左移"
                     >
@@ -407,7 +408,7 @@ export function CreateNoteWizard({ initial, onDone, onCancel }: Props) {
                     <button
                       type="button"
                       className="note-icon-btn"
-                      disabled={index === displayItems.length - 1}
+                      disabled={completeBusy || copyBusy || index === displayItems.length - 1}
                       onClick={() => moveSelected(index, 1)}
                       aria-label="右移"
                     >
@@ -416,6 +417,7 @@ export function CreateNoteWizard({ initial, onDone, onCancel }: Props) {
                     <button
                       type="button"
                       className="note-icon-btn"
+                      disabled={completeBusy || copyBusy}
                       onClick={() => removePick(index)}
                       aria-label="移除"
                     >

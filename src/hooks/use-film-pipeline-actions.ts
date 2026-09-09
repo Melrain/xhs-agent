@@ -2,8 +2,14 @@ import { useEffect, useState } from "react"
 import { studioErrorMessage } from "@/lib/api/client"
 import { useFilmPipelineMutations } from "@/hooks/use-film-project"
 import type { FilmCardAction } from "@/lib/film-card"
-import { canFilmAnalyze, filmGrokAuthLabel, type FilmGrokPreflight } from "@/lib/film-grok-preflight"
-import { selectFilmRunner } from "@/lib/film/runner"
+import {
+  canFilmAnalyze,
+  filmGrokAuthLabel,
+  filmGrokMissingCheckLabel,
+  type FilmGrokPreflight,
+  type FilmRunnerSource,
+} from "@/lib/film-grok-preflight"
+import { DEFAULT_FILM_RUNNER_SOURCE, selectFilmRunner } from "@/lib/film/runner"
 import { isFilmStageKind } from "@/lib/film-package"
 
 function isHttpUrl(value: string) {
@@ -20,11 +26,13 @@ export function useFilmPipelineActions({
   canAnalyze,
   analyzeGateLabel,
   refreshPreflight,
+  runnerSource = DEFAULT_FILM_RUNNER_SOURCE,
 }: {
   projectId?: string
   canAnalyze: boolean
   analyzeGateLabel: string
   refreshPreflight?: () => Promise<FilmGrokPreflight | undefined>
+  runnerSource?: FilmRunnerSource
 }) {
   const pipeline = useFilmPipelineMutations()
   const [localError, setLocalError] = useState("")
@@ -86,7 +94,7 @@ export function useFilmPipelineActions({
               return
             }
           } catch {
-            setLocalError("还没检查到本机 grok")
+            setLocalError(filmGrokMissingCheckLabel(runnerSource))
             return
           }
         } else if (!canAnalyze) {

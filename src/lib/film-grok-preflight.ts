@@ -118,6 +118,23 @@ export function canFilmAnalyze(preflight?: FilmGrokPreflight) {
   return Boolean(preflight?.authOk)
 }
 
+/** UI 短名：local→本机 grok，vps（默认）→VPS grok */
+export function filmGrokEndpointLabel(source?: FilmRunnerSource | null) {
+  return source === "local" ? "本机 grok" : "VPS grok"
+}
+
+export function filmGrokCheckingLabel(source?: FilmRunnerSource | null) {
+  return `正在检查${filmGrokEndpointLabel(source)}…`
+}
+
+export function filmGrokMissingCheckLabel(source?: FilmRunnerSource | null) {
+  return `未检查到${filmGrokEndpointLabel(source)}`
+}
+
+export function filmGrokReadyLabel(source?: FilmRunnerSource | null) {
+  return `${filmGrokEndpointLabel(source)} 已就绪`
+}
+
 export function filmGrokAuthLabel(preflight?: FilmGrokPreflight) {
   switch (filmGrokAuthKind(preflight)) {
     case "missing":
@@ -127,7 +144,7 @@ export function filmGrokAuthLabel(preflight?: FilmGrokPreflight) {
     case "expired":
       return "登录失效（再 grok login）"
     case "ok":
-      return "本机 grok / grok bot"
+      return `${filmGrokEndpointLabel(preflight?.source)} / grok bot`
   }
 }
 

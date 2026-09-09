@@ -129,9 +129,13 @@ export function NotesWorkspace({ active = true, onNeedLogin }: Props) {
     <div className="workspace notes">
       <header className="notes-toolbar">
         <div className="notes-toolbar-meta">
-          <p className={hint ? "status-text" : "status-text notes-toolbar-hint"}>
-            {hint ?? "组好的笔记会保存在云端，选好账号后一键发到小红书。"}
-          </p>
+          <div className="notes-page-head">
+            <p className="notes-page-kicker">笔记云工坊</p>
+            <h2 className="notes-page-title">待发笔记</h2>
+            <p className={hint ? "status-text" : "status-text notes-toolbar-hint"}>
+              {hint ?? "组好的笔记会保存在云端，选好账号后一键发到小红书。"}
+            </p>
+          </div>
           {pendingWriteback ? (
             <button
               type="button"
@@ -159,7 +163,12 @@ export function NotesWorkspace({ active = true, onNeedLogin }: Props) {
               ))}
             </select>
           </label>
-          <button type="button" className="primary-btn" onClick={() => setEditingPackage(null)}>
+          <button
+            type="button"
+            className="primary-btn"
+            disabled={Boolean(publishingPackageId)}
+            onClick={() => setEditingPackage(null)}
+          >
             创建笔记
           </button>
         </div>
@@ -240,10 +249,10 @@ export function NotesWorkspace({ active = true, onNeedLogin }: Props) {
                   <button
                     type="button"
                     className="ghost-btn compact"
-                    disabled={mut.remove.isPending}
+                    disabled={mut.remove.isPending || Boolean(publishingPackageId)}
                     onClick={() => void handleDelete(pkg)}
                   >
-                    删除
+                    {mut.remove.isPending ? "删除中…" : "删除"}
                   </button>
                 </div>
               </li>

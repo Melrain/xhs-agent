@@ -5,8 +5,13 @@ import type { FilmCard, FilmCardData } from "@/lib/film-card"
 import {
   canFilmAnalyze,
   filmGrokAuthLabel,
+  filmGrokCheckingLabel,
+  filmGrokEndpointLabel,
+  filmGrokReadyLabel,
   type FilmGrokPreflight,
+  type FilmRunnerSource,
 } from "@/lib/film-grok-preflight"
+import { DEFAULT_FILM_RUNNER_SOURCE, filmRunnerSourceLabel } from "@/lib/film/runner"
 import { filmFollowCards } from "@/lib/film-pipeline"
 import { FilmCardArticle } from "./film-card-article"
 import { FilmGrokStatus } from "./film-grok-status"
@@ -51,6 +56,7 @@ export function FilmFollowPage({
   preflightLoading,
   preflightError,
   loginMessage,
+  runnerSource = DEFAULT_FILM_RUNNER_SOURCE,
   onRecheck,
   refreshPreflight,
 }: {
@@ -61,6 +67,7 @@ export function FilmFollowPage({
   preflightLoading: boolean
   preflightError?: string
   loginMessage?: string
+  runnerSource?: FilmRunnerSource
   onRecheck: () => void
   refreshPreflight?: () => Promise<FilmGrokPreflight | undefined>
 }) {
@@ -69,6 +76,7 @@ export function FilmFollowPage({
     canAnalyze,
     analyzeGateLabel,
     refreshPreflight,
+    runnerSource,
   })
   const cards = useMemo(
     () =>
@@ -79,6 +87,8 @@ export function FilmFollowPage({
       }).cards,
     [analyzeGateLabel, canAnalyze, project],
   )
+  const source = grokStatus?.source ?? runnerSource
+  const endpointLabel = filmGrokEndpointLabel(source)
   const grokLogin = project?.nextAction?.id === "grok_login"
   const checkingGrok = preflightLoading && !grokStatus
   const needsLogin = !checkingGrok && (grokLogin || !canFilmAnalyze(grokStatus))
@@ -115,32 +125,43 @@ export function FilmFollowPage({
         <header className="film-follow-intro">
           <p className="film-follow-kicker">爆款复制</p>
           <h2>跟拍参考片</h2>
-          <p>先导入参考片、检查本机 grok，再核对拆解。剧本先占位。无限画布是入口，不挡这条跟拍。</p>
+          <p>
+            {`先导入参考片、检查${endpointLabel}（${filmRunnerSourceLabel(source)}${
+              source === "vps" ? "，默认" : ""
+            }），再核对拆解。剧本先占位。无限画布是入口，不挡这条跟拍。`}
+          </p>
         </header>
 
         {briefCards.map(renderCard)}
         {referenceCards.map(renderCard)}
 
-        <section className="film-follow-preflight" aria-label="本机 grok">
+        <section className="film-follow-preflight" aria-label={endpointLabel}>
           <div className="film-card-meta">
-            <span className="film-card-kind">本机 grok</span>
+            <span className="film-card-kind">{endpointLabel}</span>
             {grokLogin ? <span className="film-card-status">请先 grok login</span> : null}
           </div>
           <h3>
-            {checkingGrok ? "正在检查本机 grok…" : needsLogin ? "先登录再拆解" : "本机 grok 已就绪"}
+            {checkingGrok
+              ? filmGrokCheckingLabel(source)
+              : needsLogin
+                ? "先登录再拆解"
+                : filmGrokReadyLabel(source)}
           </h3>
           <p>
             {loginMessage ||
               (preflightLoading && !grokStatus
-                ? "正在检查本机 grok…"
+                ? filmGrokCheckingLabel(source)
                 : preflightError ||
-                  (canAnalyze ? "可以拆解参考片。" : analyzeGateLabel || filmGrokAuthLabel(grokStatus)))}
+                  (canAnalyze
+                    ? "可以拆解参考片。"
+                    : analyzeGateLabel || filmGrokAuthLabel(grokStatus)))}
           </p>
           <FilmGrokStatus
             preflight={grokStatus}
             loading={preflightLoading}
             error={preflightError}
             loginMessage={!canAnalyze ? loginMessage : undefined}
+            fallbackSource={runnerSource}
             onRecheck={onRecheck}
           />
         </section>
