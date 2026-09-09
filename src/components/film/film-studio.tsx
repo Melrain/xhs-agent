@@ -1,11 +1,18 @@
-import { lazy, Suspense, useState } from "react"
+import { lazy, Suspense, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { studioErrorMessage } from "@/lib/api/client"
+import { filmGrokPreflightQueryKey } from "@/lib/api/film"
 import { useFilmCurrentProject, useFilmGrokPreflight } from "@/hooks/use-film-project"
 import {
+  writeFilmExecutorSourcePreference,
+} from "@/lib/film-client-state"
+import {
   canFilmAnalyze,
+  filmAnalyzeGateReason,
   filmGrokAuthLabel,
   filmGrokCheckingLabel,
   mergeFilmGrokStatus,
+  type FilmRunnerSource,
 } from "@/lib/film-grok-preflight"
 import { resolveFilmRunnerSource } from "@/lib/film/runner"
 import { filmNextActionMessage, isFilmProjectBusy } from "@/lib/film-package"
@@ -20,6 +27,8 @@ const FilmCanvas = lazy(async () => {
 
 export function FilmStudio() {
   const [view, setView] = useState<"follow" | "canvas">("follow")
+  const [sourceEpoch, setSourceEpoch] = useState(0)
+  const queryClient = useQueryClient()
   const current = useFilmCurrentProject(true)
   const project = current.data
   const preflight = useFilmGrokPreflight(true, project)
@@ -27,19 +36,36 @@ export function FilmStudio() {
   const hint = project ? filmNextActionMessage(project) : ""
   const busy = isFilmProjectBusy(project)
   const grokStatus = mergeFilmGrokStatus(preflight.data, project?.grok)
-  const runnerSource = resolveFilmRunnerSource(project)
+  const runnerSource = useMemo(
+    () => resolveFilmRunnerSource(project),
+    // sourceEpoch：偏好写入后强制重读 localStorage
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [project, sourceEpoch],
+  )
   const canAnalyze = canFilmAnalyze(grokStatus)
   const loginHint = project?.nextAction?.id === "grok_login" ? project.nextAction.message : ""
   const preflightError = preflight.error ? studioErrorMessage(preflight.error) : ""
   const analyzeGateLabel =
     preflight.isLoading && !grokStatus
       ? filmGrokCheckingLabel(runnerSource)
-      : loginHint || preflightError || (canAnalyze ? "" : filmGrokAuthLabel(grokStatus))
+      : loginHint ||
+        preflightError ||
+        filmAnalyzeGateReason(grokStatus) ||
+        (canAnalyze ? "" : filmGrokAuthLabel(grokStatus))
+  const projectLocksSource = Boolean(
+    project?.source || project?.executor?.source || project?.package?.source || project?.package?.executorSource,
+  )
 
   async function refreshPreflight() {
     const result = await preflight.refetch()
     if (result.error) throw result.error
     return result.data
+  }
+
+  function handleRunnerSourceChange(next: FilmRunnerSource) {
+    writeFilmExecutorSourcePreference(next)
+    setSourceEpoch((value) => value + 1)
+    void queryClient.invalidateQueries({ queryKey: filmGrokPreflightQueryKey() })
   }
 
   return (
@@ -66,7 +92,7 @@ export function FilmStudio() {
           </button>
         )}
         <FilmGrokStatus
-          preflight={grokStatus}
+          preflight={grokStatus ? { ...grokStatus, source: runnerSource } : grokStatus}
           loading={preflight.isFetching}
           error={preflightError || undefined}
           loginMessage={!canAnalyze ? loginHint : undefined}
@@ -96,6 +122,8 @@ export function FilmStudio() {
             preflightError={preflightError || undefined}
             loginMessage={loginHint || undefined}
             runnerSource={runnerSource}
+            sourceLocked={projectLocksSource}
+            onRunnerSourceChange={handleRunnerSourceChange}
             onRecheck={() => {
               void preflight.refetch()
             }}

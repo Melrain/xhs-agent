@@ -19,9 +19,9 @@ import {
 import { getStoredUser } from "@/lib/auth/tokens"
 import { clearFilmHidden, clearFilmLayout } from "@/lib/film-client-state"
 import {
-  getDefaultFilmRunner,
   getFilmRunnerForProject,
   resolveFilmRunnerSource,
+  selectFilmRunner,
   type FilmRunnerSource,
 } from "@/lib/film/runner"
 import { isFilmProjectBusy } from "@/lib/film-package"
@@ -68,7 +68,7 @@ export function useFilmGrokPreflight(
   return useQuery({
     queryKey: [...filmGrokPreflightQueryKey(), source] as const,
     queryFn: ({ signal }) =>
-      (project ? getFilmRunnerForProject(project) : getDefaultFilmRunner()).preflight({
+      selectFilmRunner(source).preflight({
         signal,
       }),
     enabled,
@@ -154,7 +154,11 @@ export function useFilmPipelineMutations() {
         const runner = getFilmRunnerForProject(currentProject())
         return runner.analyze(input.projectId, input.refId)
       },
-      onSuccess: remember,
+      onSuccess: (result) => {
+        // writebackError is UI-only; do not keep it on the cached FilmProject.
+        const { writebackError: _writebackError, ...project } = result
+        remember(project)
+      },
     }),
     approve: useMutation({
       mutationFn: (input: { projectId: string; stageId: string }) =>

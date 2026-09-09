@@ -26,27 +26,34 @@ export function FilmIngestForm({
         onUrl?.(next)
       }}
     >
-      <input
-        type="text"
-        inputMode="url"
-        value={url}
-        disabled={disabled}
-        placeholder="粘贴参考片链接"
-        aria-label="参考片链接"
-        className={dragSafe ? "nodrag nopan nowheel" : undefined}
-        onChange={(event) => setUrl(event.target.value)}
-      />
       <div className="film-ingest-actions">
-        <button type="submit" className="primary-btn compact" disabled={disabled || !url.trim()}>
-          导入链接
-        </button>
         <button
           type="button"
-          className="ghost-btn compact"
+          className="primary-btn compact"
           disabled={disabled}
           onClick={() => fileRef.current?.click()}
         >
           上传视频
+        </button>
+      </div>
+      <p className="film-ingest-hint">优先上传本地视频文件</p>
+      <div className="film-ingest-url-secondary">
+        <input
+          type="text"
+          inputMode="url"
+          value={url}
+          disabled={disabled}
+          placeholder="或粘贴参考片链接（次要）"
+          aria-label="参考片链接（次要）"
+          className={dragSafe ? "nodrag nopan nowheel" : undefined}
+          onChange={(event) => setUrl(event.target.value)}
+        />
+        <button
+          type="submit"
+          className="ghost-btn compact"
+          disabled={disabled || !url.trim()}
+        >
+          导入链接
         </button>
       </div>
       <input

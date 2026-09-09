@@ -113,3 +113,32 @@ export function writeFilmExecutorSourcePreference(source: "vps" | "local" | null
     // ignore
   }
 }
+
+const LOCAL_MEDIA_PREFIX = "film-local-media:"
+
+function localMediaKey(projectId: string, refId: string) {
+  return `${LOCAL_MEDIA_PREFIX}${projectId}:${refId}`
+}
+
+/** 本机上传缓存路径：source=local analyze 优先用。 */
+export function readFilmLocalMediaPath(projectId: string, refId: string): string | undefined {
+  try {
+    const raw = window.localStorage.getItem(localMediaKey(projectId, refId))
+    return raw?.trim() || undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function writeFilmLocalMediaPath(projectId: string, refId: string, mediaPath: string) {
+  try {
+    const trimmed = mediaPath.trim()
+    if (!trimmed) {
+      window.localStorage.removeItem(localMediaKey(projectId, refId))
+      return
+    }
+    window.localStorage.setItem(localMediaKey(projectId, refId), trimmed)
+  } catch {
+    // ignore
+  }
+}

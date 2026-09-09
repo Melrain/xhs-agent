@@ -15,8 +15,11 @@ import {
 import {
   FILM_STAGE_LABELS,
   FILM_STAGES,
+  filmAnalyzingRefId,
+  filmBreakdownPresentation,
   filmBreakdownStageId,
   filmPackageOf,
+  filmReferenceHasParseableMedia,
   filmSourceLabel,
   filmStageKind,
   filmStatusLabel,
@@ -35,6 +38,14 @@ const STAGE_Y = -40
 const START_X = -160
 
 type LayoutMap = Record<string, FilmCardPosition>
+
+export type FilmPipelineCardOptions = {
+  canAnalyze?: boolean
+  canGenerate?: boolean
+  analyzeGateLabel?: string
+  /** 跟拍产品切片：隐藏本机/剧本/后续生成 CTA */
+  followVerifyOnly?: boolean
+}
 
 function positionOf(id: string, index: number, layouts: LayoutMap): FilmCardPosition {
   return layouts[id] ?? { x: START_X + index * STAGE_GAP_X, y: STAGE_Y }
@@ -55,7 +66,7 @@ function referenceBody(item: FilmReference) {
   if (item.url) lines.push(item.url)
   if (item.source === "upload" && !item.mediaUrl) lines.push("已上传，暂无预览")
   if (item.status === "pending") lines.push("正在导入参考片…")
-  if (item.status === "failed") lines.push("导入失败，请换一条链接或重新上传。")
+  if (item.status === "failed") lines.push("导入失败，请重新上传视频，或换一条链接。")
   return lines.join("\n") || undefined
 }
 
@@ -64,16 +75,17 @@ function localRunAction(
   stageId: string,
   canGenerate: boolean,
 ): FilmCardAction[] {
-  return [
-    {
-      id: "run_local",
-      label: filmLocalWorkerActionLabel(),
-      variant: "ghost",
-      disabled: !isFilmLocalWorkerReady() || !canGenerate,
-      stageId,
-      stage: kind,
-    },
-  ]
+  if (!canGenerate || !isFilmLocalWorkerReady()) return []
+  const action: FilmCardAction = {
+    id: "run_local",
+    label: filmLocalWorkerActionLabel(),
+    title: "本机执行尚未接线",
+    variant: "ghost",
+    disabled: true,
+    stageId,
+    stage: kind,
+  }
+  return [action]
 }
 
 function referenceActions(
@@ -81,26 +93,46 @@ function referenceActions(
   nextActionId: string | undefined,
   canAnalyze: boolean,
   gateLabel?: string,
+  analyzingRefId?: string,
 ): FilmCardAction[] {
   if (item.status !== "ready" || nextActionId !== "run_breakdown") return []
+  const hasMedia = filmReferenceHasParseableMedia(item)
+  const blocked = !canAnalyze || !hasMedia || analyzingRefId === item.id
+  const title = analyzingRefId === item.id
+    ? "正在拆解…"
+    : !hasMedia
+      ? "没有可拆解的媒体"
+      : canAnalyze
+        ? undefined
+        : gateLabel
   return [
     {
       id: "analyze",
-      label: "拆解这段参考片",
-      title: canAnalyze ? undefined : gateLabel,
+      label: analyzingRefId === item.id ? "正在拆解…" : "拆解这段参考片",
+      title,
       variant: "primary",
       refId: item.id,
-      disabled: !canAnalyze,
+      disabled: blocked,
     },
   ]
 }
 
-function breakdownActions(pkg: FilmPackage, nextActionId: string | undefined): FilmCardAction[] {
+function breakdownActions(
+  pkg: FilmPackage,
+  nextActionId: string | undefined,
+  followVerifyOnly?: boolean,
+): FilmCardAction[] {
   if (nextActionId !== "review_breakdown") return []
   const stageId = filmBreakdownStageId(pkg)
   if (!stageId) return []
+  // 跟拍只核对拆解：保留通过/重拆，不引导写剧本或本机生成
   return [
-    { id: "approve", label: "通过拆解，下一步本机执行", variant: "primary", stageId },
+    {
+      id: "approve",
+      label: followVerifyOnly ? "拆解没问题" : "通过拆解",
+      variant: "primary",
+      stageId,
+    },
     { id: "reject", label: "重新拆解", variant: "ghost", stageId },
   ]
 }
@@ -110,36 +142,65 @@ function placeholderCard(
   kind: FilmStageKind,
   index: number,
   layouts: LayoutMap,
-  extras?: { body?: string; cardKind?: FilmCard["kind"]; actions?: FilmCardAction[]; canGenerate?: boolean },
+  extras?: {
+    body?: string
+    cardKind?: FilmCard["kind"]
+    actions?: FilmCardAction[]
+    canGenerate?: boolean
+    followVerifyOnly?: boolean
+    busy?: boolean
+    statusLabel?: string
+  },
 ): FilmCard {
   const id = `stage:${kind}`
   const local = isFilmLocalGenerationStage(kind)
+  const hideLocal = extras?.followVerifyOnly || !extras?.canGenerate
   return createFilmCard(extras?.cardKind ?? (kind === "script" ? "script" : "stage"), positionOf(id, index, layouts), {
     id,
     title: stage.label || FILM_STAGE_LABELS[kind],
-    body: extras?.body ?? (local ? filmLocalWorkerHint(kind) : "这一步还没开始。"),
+    body:
+      extras?.body ??
+      (extras?.followVerifyOnly && kind === "script"
+        ? "剧本与后续生成稍后开放。"
+        : local
+          ? hideLocal
+            ? "本机生成阶段尚未接线。"
+            : filmLocalWorkerHint(kind)
+          : "这一步还没开始。"),
     locked: true,
     placeholder: true,
-    statusLabel: local ? filmLocalWorkerStatusLabel() : filmStatusLabel(stage.status) || undefined,
-    actions: extras?.actions ?? (local ? localRunAction(kind, stage.id, extras?.canGenerate !== false) : undefined),
+    busy: extras?.busy,
+    statusLabel:
+      extras?.statusLabel ??
+      (local
+        ? hideLocal
+          ? "尚未接线"
+          : filmLocalWorkerStatusLabel()
+        : filmStatusLabel(stage.status) || undefined),
+    actions:
+      extras?.actions ??
+      (local && !hideLocal ? localRunAction(kind, stage.id, extras?.canGenerate !== false) : undefined),
   })
 }
 
 export function filmPipelineCards(
   project: FilmProject | undefined,
   layouts: LayoutMap,
-  options?: { canAnalyze?: boolean; canGenerate?: boolean; analyzeGateLabel?: string },
+  options?: FilmPipelineCardOptions,
 ): { cards: FilmCard[]; pipelineIds: string[] } {
   const cards: FilmCard[] = []
   const pipelineIds: string[] = []
   const pkg = filmPackageOf(project)
   const nextActionId = inferFilmNextActionId(project)
   const canAnalyze = options?.canAnalyze === true
-  const canGenerate = options?.canGenerate === true
+  const canGenerate = options?.canGenerate === true && !options?.followVerifyOnly
   const analyzeGateLabel = options?.analyzeGateLabel
+  const followVerifyOnly = options?.followVerifyOnly === true
+  const analyzingRefId = filmAnalyzingRefId(project)
   const stages = pkg.stages.length > 0 ? pkg.stages : fallbackStages()
   const hasReference = pkg.references.length > 0
   const showPipeline = pkg.stages.length > 0 || hasReference || nextActionId !== "ingest_reference"
+  const projectBusy = isFilmProjectBusy(project)
 
   if (project?.brief.trim()) {
     cards.push(
@@ -163,10 +224,10 @@ export function filmPipelineCards(
           createFilmCard("reference", positionOf(id, index, layouts), {
             id,
             title: stage.label || "参考片",
-            body: "贴一条参考片链接，或上传视频。导入后会出现在这里。",
+            body: "优先上传视频；链接导入为次要方式。导入后会出现在这里。",
             locked: true,
             ingest: true,
-            busy: isFilmProjectBusy(project) || stage.status === "running",
+            busy: projectBusy || stage.status === "running",
             statusLabel: filmStatusLabel(stage.status !== "placeholder" ? stage.status : undefined),
           }),
         )
@@ -175,6 +236,7 @@ export function filmPipelineCards(
       }
       pkg.references.forEach((item, refIndex) => {
         const id = `reference:${item.id}`
+        const analyzingThis = analyzingRefId === item.id
         cards.push(
           createFilmCard("reference", positionOf(id, index, layouts), {
             id,
@@ -182,10 +244,21 @@ export function filmPipelineCards(
             body: referenceBody(item),
             locked: true,
             ingest: item.status === "failed",
-            busy: item.status === "pending" || stage.status === "running",
-            statusLabel: filmStatusLabel(item.status),
+            busy:
+              item.status === "pending" ||
+              stage.status === "running" ||
+              analyzingThis,
+            statusLabel: analyzingThis
+              ? "正在拆解"
+              : filmStatusLabel(item.status),
             mediaUrl: item.mediaUrl,
-            actions: referenceActions(item, nextActionId, canAnalyze, analyzeGateLabel),
+            actions: referenceActions(
+              item,
+              nextActionId,
+              canAnalyze,
+              analyzeGateLabel,
+              analyzingRefId,
+            ),
           }),
         )
         if (refIndex === 0) pipelineIds.push(id)
@@ -199,7 +272,19 @@ export function filmPipelineCards(
       if (pkg.breakdown.length > 0) {
         pkg.breakdown.forEach((item, itemIndex) => {
           const id = `breakdown:${item.id}`
-          cards.push(breakdownCard(item, stage, index, layouts, pkg, nextActionId))
+          cards.push(
+            breakdownCard(
+              item,
+              itemIndex,
+              stage,
+              index,
+              layouts,
+              pkg,
+              nextActionId,
+              followVerifyOnly,
+              Boolean(analyzingRefId) || stage.status === "running",
+            ),
+          )
           if (itemIndex === 0) pipelineIds.push(id)
         })
         return
@@ -207,17 +292,37 @@ export function filmPipelineCards(
       const card = placeholderCard(stage, kind, index, layouts, {
         cardKind: "breakdown",
         canGenerate,
+        followVerifyOnly,
+        busy: Boolean(analyzingRefId) || stage.status === "running",
+        statusLabel:
+          analyzingRefId || stage.status === "running"
+            ? "正在拆解"
+            : filmStatusLabel(stage.status) || undefined,
         body:
-          nextActionId === "run_breakdown"
-            ? "参考片已就绪，点参考片上的按钮开始拆解。拆解走当前执行端（默认走 VPS）。"
-            : filmLocalWorkerHint("breakdown"),
+          analyzingRefId || stage.status === "running"
+            ? "正在拆解参考片，请稍候…"
+            : nextActionId === "run_breakdown"
+              ? "参考片已就绪。确认执行端 grok / ffmpeg 后，点参考片上的按钮开始拆解。"
+              : "还没有拆解结果。先导入参考片并完成检查。",
       })
       cards.push(card)
       pipelineIds.push(card.id)
       return
     }
 
-    const card = placeholderCard(stage, kind, index, layouts, { canGenerate })
+    if (followVerifyOnly && kind === "script") {
+      // 跟拍页不展示剧本占位；由 filmFollowCards 再滤一层
+      return
+    }
+
+    if (followVerifyOnly && isFilmLocalGenerationStage(kind)) {
+      return
+    }
+
+    const card = placeholderCard(stage, kind, index, layouts, {
+      canGenerate,
+      followVerifyOnly,
+    })
     cards.push(card)
     pipelineIds.push(card.id)
   })
@@ -225,15 +330,19 @@ export function filmPipelineCards(
   return { cards, pipelineIds }
 }
 
-const FOLLOW_CARD_KINDS = new Set(["brief", "reference", "breakdown", "script"])
+const FOLLOW_CARD_KINDS = new Set(["brief", "reference", "breakdown"])
 
-/** 跟拍页只展示参考片 → 拆解 → 剧本，后面的本机阶段留在画布。 */
+/** 跟拍页只展示参考片 → 拆解核对；剧本/本机生成隐藏。 */
 export function filmFollowCards(
   project: FilmProject | undefined,
   layouts: LayoutMap,
-  options?: { canAnalyze?: boolean; canGenerate?: boolean; analyzeGateLabel?: string },
+  options?: FilmPipelineCardOptions,
 ) {
-  const built = filmPipelineCards(project, layouts, options)
+  const built = filmPipelineCards(project, layouts, {
+    ...options,
+    canGenerate: false,
+    followVerifyOnly: true,
+  })
   return {
     cards: built.cards.filter((card) => FOLLOW_CARD_KINDS.has(card.kind)),
     pipelineIds: built.pipelineIds.filter((id) =>
@@ -244,21 +353,29 @@ export function filmFollowCards(
 
 function breakdownCard(
   item: FilmBreakdownItem,
+  itemIndex: number,
   stage: FilmStage,
   index: number,
   layouts: LayoutMap,
   pkg: FilmPackage,
   nextActionId: string | undefined,
+  followVerifyOnly?: boolean,
+  busy?: boolean,
 ): FilmCard {
   const id = `breakdown:${item.id}`
+  const presented = filmBreakdownPresentation(item, itemIndex, pkg)
   return createFilmCard("breakdown", positionOf(id, index, layouts), {
     id,
-    title: item.title,
-    body: item.body || undefined,
+    title: presented.title,
+    body: presented.body,
     locked: true,
-    busy: stage.status === "running",
-    statusLabel: filmStatusLabel(stage.status),
-    badge: item.kind,
-    actions: breakdownActions(pkg, nextActionId),
+    busy: busy || stage.status === "running",
+    statusLabel:
+      busy || stage.status === "running"
+        ? "正在拆解"
+        : filmStatusLabel(stage.status),
+    badge: presented.badge,
+    mediaUrl: presented.mediaUrl,
+    actions: breakdownActions(pkg, nextActionId, followVerifyOnly),
   })
 }

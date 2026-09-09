@@ -114,8 +114,42 @@ export function filmGrokAuthKind(preflight?: FilmGrokPreflight): FilmGrokAuthKin
   return "ok"
 }
 
+/** stub / 明确阻塞：不假装可以真实拆解（local 本身可选；看 detail 是否仍未接线）。 */
+export function isFilmGrokStubOrBlocked(preflight?: FilmGrokPreflight) {
+  if (!preflight) return false
+  const detail = preflight.detail.toLowerCase()
+  return (
+    detail.includes("stub") ||
+    detail.includes("尚未接线") ||
+    detail.includes("尚未实现") ||
+    detail.includes("暂不可用")
+  )
+}
+
+/**
+ * 拆解门槛：authOk，且 ffmpeg 未明确失败。
+ * ffmpegOk === false 时不开放真实拆解；undefined 视为 Nest 未报，不额外拦截。
+ */
 export function canFilmAnalyze(preflight?: FilmGrokPreflight) {
-  return Boolean(preflight?.authOk)
+  if (!preflight?.authOk) return false
+  if (preflight.ffmpegOk === false) return false
+  if (isFilmGrokStubOrBlocked(preflight)) return false
+  return true
+}
+
+/** 诚实门禁文案（中文）；可拆解时返回空串。 */
+export function filmAnalyzeGateReason(preflight?: FilmGrokPreflight) {
+  if (!preflight) return "尚未检查执行端 grok"
+  if (isFilmGrokStubOrBlocked(preflight)) {
+    return preflight.detail.trim() || "执行端暂不可用（stub），不能假装拆解"
+  }
+  if (!preflight.authOk) return filmGrokAuthLabel(preflight)
+  if (preflight.ffmpegOk === false) return "ffmpeg 不可用，无法做真实拆解"
+  if (preflight.whisperOk === false) {
+    // whisper 软提示：不挡拆解，但调用方也可拼进说明
+    return ""
+  }
+  return ""
 }
 
 /** UI 短名：local→本机 grok，vps（默认）→VPS grok */
@@ -136,6 +170,12 @@ export function filmGrokReadyLabel(source?: FilmRunnerSource | null) {
 }
 
 export function filmGrokAuthLabel(preflight?: FilmGrokPreflight) {
+  if (isFilmGrokStubOrBlocked(preflight) && preflight?.source === "local") {
+    // 本机 stub/阻塞时仍展示真实 auth 态；门禁用 filmAnalyzeGateReason。
+    if (preflight.installed && preflight.authOk) {
+      return `${filmGrokEndpointLabel("local")} / grok bot`
+    }
+  }
   switch (filmGrokAuthKind(preflight)) {
     case "missing":
       return "未安装"
@@ -157,7 +197,10 @@ export function filmGrokDetailText(preflight?: FilmGrokPreflight) {
 export function filmGrokToolHints(preflight?: FilmGrokPreflight) {
   if (!preflight) return []
   const hints: string[] = []
-  if (preflight.ffmpegOk === false) hints.push("ffmpeg 还没好")
-  if (preflight.whisperOk === false) hints.push("whisper 还没好")
+  if (preflight.ffmpegOk === false) hints.push("ffmpeg 还没好 · 不能真实拆解")
+  else if (preflight.ffmpegOk === true) hints.push("ffmpeg 可用")
+  if (preflight.whisperOk === false) hints.push("whisper 还没好 · 对白可能不完整")
+  else if (preflight.whisperOk === true) hints.push("whisper 可用")
+  if (isFilmGrokStubOrBlocked(preflight)) hints.push("执行端为 stub / 已阻塞")
   return hints
 }

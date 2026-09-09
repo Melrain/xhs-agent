@@ -12,7 +12,8 @@ import {
 
 const LIST_TIMEOUT_MS = 15_000
 const UPLOAD_TIMEOUT_MS = 180_000
-const ANALYZE_TIMEOUT_MS = 60_000
+/** 跟拍拆解可能很长；须 ≥ Nest，建议 180–380s。 */
+const ANALYZE_TIMEOUT_MS = 380_000
 const PREFLIGHT_TIMEOUT_MS = 90_000
 
 export const FILM_QUERY_KEY = ["film"] as const
@@ -46,6 +47,8 @@ export type FilmProject = FilmProjectSummary & {
   nextAction?: FilmNextAction
   package?: FilmPackage
   grok?: FilmGrokThread
+  /** Nest 正在拆解的参考片 id */
+  analyzingRefId?: string
   /** 执行端锁定；字段名 source："vps" | "local" */
   source?: FilmRunnerSource
   executor?: FilmExecutor
@@ -91,6 +94,10 @@ function parseProject(value: unknown): FilmProject | null {
   const brief = typeof record?.brief === "string" ? record.brief : ""
   const source = parseRunnerSource(record?.source)
   const executor = parseExecutor(record?.executor)
+  const analyzingRefId =
+    typeof record?.analyzingRefId === "string" && record.analyzingRefId.trim()
+      ? record.analyzingRefId.trim()
+      : undefined
   return {
     ...summary,
     brief,
@@ -98,6 +105,7 @@ function parseProject(value: unknown): FilmProject | null {
     nextAction: parseFilmNextAction(record?.nextAction),
     package: parseFilmPackage(record?.package),
     grok: parseFilmGrokThread(record?.grok),
+    ...(analyzingRefId ? { analyzingRefId } : {}),
     ...(source ? { source } : {}),
     ...(executor ? { executor } : {}),
   }
@@ -229,6 +237,65 @@ export async function analyzeFilmReference(
       {
         method: "POST",
         timeoutMs: ANALYZE_TIMEOUT_MS,
+        signal: options?.signal,
+      },
+    ),
+  )
+}
+
+/** Nest PersistFilmBreakdownItemDto — 镜号/画面/对白 via title+body(+kind). */
+export type FilmReferenceBreakdownItemBody = {
+  id?: string
+  title: string
+  /** Prefer 画面：…\n对白：… for shot cards */
+  body: string
+  kind?: string
+}
+
+/** Nest PersistFilmAnalyzeMetaDto */
+export type FilmReferenceBreakdownAnalyzeMeta = {
+  mode?: "local" | "cli" | "webhook" | "stub" | string
+  hadFrames?: boolean
+  hadTranscript?: boolean
+  blocked?: boolean
+  error?: string
+  at?: string
+  fallbackFrom?: string
+}
+
+/** Nest PersistFilmBreakdownDto — POST .../references/:refId/breakdown */
+export type FilmReferenceBreakdownBody = {
+  items?: FilmReferenceBreakdownItemBody[]
+  meta?: {
+    analyze?: FilmReferenceBreakdownAnalyzeMeta
+  }
+  script?: {
+    id?: string
+    title?: string
+    body?: string
+  }
+}
+
+/**
+ * Desktop local analyze writeback (Nest live).
+ * POST /internal/film/projects/:id/references/:refId/breakdown
+ * Persists package.breakdown + meta.analyze; does not run Grok on server.
+ * Empty items only when meta.analyze.blocked=true AND error present.
+ */
+export async function submitFilmReferenceBreakdown(
+  projectId: string,
+  refId: string,
+  body: FilmReferenceBreakdownBody,
+  options?: { signal?: AbortSignal },
+) {
+  return requireProject(
+    await backendFetch<unknown>(
+      projectPath(projectId, `/references/${encodeURIComponent(refId)}/breakdown`),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        timeoutMs: LIST_TIMEOUT_MS,
         signal: options?.signal,
       },
     ),

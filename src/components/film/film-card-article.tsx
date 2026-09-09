@@ -1,6 +1,39 @@
 import { FILM_CARD_LABELS, type FilmCardData } from "@/lib/film-card"
 import { FilmIngestForm } from "./film-ingest-form"
 
+function isLikelyImageUrl(url: string) {
+  return /\.(png|jpe?g|gif|webp|bmp|avif)(\?|#|$)/i.test(url) || /\/frames?\//i.test(url)
+}
+
+function BreakdownBody({ body }: { body: string }) {
+  const lines = body.split("\n").map((line) => line.trimEnd())
+  const visual = lines.find((line) => line.startsWith("画面："))
+  const dialogue = lines.find((line) => line.startsWith("对白："))
+  const rest = lines.filter((line) => !line.startsWith("画面：") && !line.startsWith("对白："))
+
+  if (!visual && !dialogue) {
+    return <p>{body}</p>
+  }
+
+  return (
+    <div className="film-breakdown-body">
+      {visual ? (
+        <p className="film-breakdown-visual">
+          <span className="film-breakdown-label">画面</span>
+          <span>{visual.replace(/^画面：/, "") || "（无）"}</span>
+        </p>
+      ) : null}
+      {dialogue ? (
+        <p className="film-breakdown-dialogue">
+          <span className="film-breakdown-label">对白</span>
+          <span>{dialogue.replace(/^对白：/, "") || "（无）"}</span>
+        </p>
+      ) : null}
+      {rest.length > 0 ? <p className="film-breakdown-rest">{rest.join("\n")}</p> : null}
+    </div>
+  )
+}
+
 export function FilmCardArticle({
   data,
   dragSafe = false,
@@ -10,6 +43,9 @@ export function FilmCardArticle({
 }) {
   const kindLabel = FILM_CARD_LABELS[data.kind] || "卡片"
   const dragClass = dragSafe ? " nodrag nopan" : ""
+  const showAsFrame =
+    Boolean(data.mediaUrl) &&
+    (data.kind === "breakdown" || isLikelyImageUrl(data.mediaUrl ?? ""))
 
   return (
     <article
@@ -36,16 +72,27 @@ export function FilmCardArticle({
         </div>
       ) : null}
       {data.mediaUrl ? (
-        <video
-          className={`film-card-media${dragSafe ? " nodrag nopan nowheel" : ""}`}
-          src={data.mediaUrl}
-          controls
-          muted
-          playsInline
-          onPointerDown={dragSafe ? (event) => event.stopPropagation() : undefined}
-        />
+        showAsFrame ? (
+          <img
+            className={`film-card-media film-card-frame${dragSafe ? " nodrag nopan nowheel" : ""}`}
+            src={data.mediaUrl}
+            alt=""
+            onPointerDown={dragSafe ? (event) => event.stopPropagation() : undefined}
+          />
+        ) : (
+          <video
+            className={`film-card-media${dragSafe ? " nodrag nopan nowheel" : ""}`}
+            src={data.mediaUrl}
+            controls
+            muted
+            playsInline
+            onPointerDown={dragSafe ? (event) => event.stopPropagation() : undefined}
+          />
+        )
       ) : null}
-      {data.body ? <p>{data.body}</p> : null}
+      {data.body ? (
+        data.kind === "breakdown" ? <BreakdownBody body={data.body} /> : <p>{data.body}</p>
+      ) : null}
       {data.ingest ? (
         <FilmIngestForm
           disabled={Boolean(data.busy)}

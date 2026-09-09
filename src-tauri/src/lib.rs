@@ -1,4 +1,5 @@
 mod cli_install;
+mod film_grok;
 mod export;
 mod media_save;
 mod publish;
@@ -190,6 +191,32 @@ async fn save_media(
     media_save::save_media(app, url, bytes, file_name).await
 }
 
+
+#[tauri::command]
+async fn film_local_grok_preflight() -> Result<film_grok::FilmLocalGrokPreflight, String> {
+    tauri::async_runtime::spawn_blocking(film_grok::probe_local_grok)
+        .await
+        .map_err(|error| format!("任务中断：{error}"))
+}
+
+#[tauri::command]
+async fn film_local_cache_media(
+    input: film_grok::FilmLocalCacheMediaInput,
+) -> Result<film_grok::FilmLocalCacheMediaResult, String> {
+    tauri::async_runtime::spawn_blocking(move || film_grok::cache_local_media(input))
+        .await
+        .map_err(|error| format!("任务中断：{error}"))?
+}
+
+#[tauri::command]
+async fn film_local_grok_analyze(
+    input: film_grok::FilmLocalAnalyzeInput,
+) -> Result<film_grok::FilmLocalAnalyzeResult, String> {
+    tauri::async_runtime::spawn_blocking(move || film_grok::analyze_local_grok(input))
+        .await
+        .map_err(|error| format!("任务中断：{error}"))
+}
+
 fn sanitize_file_name(name: &str) -> String {
     let trimmed = name.trim();
     let safe: String = trimmed
@@ -270,6 +297,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             setup_probe,
+            film_local_grok_preflight,
+            film_local_cache_media,
+            film_local_grok_analyze,
             setup_ensure,
             session_boot,
             session_snapshot,

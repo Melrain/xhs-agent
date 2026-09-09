@@ -104,7 +104,7 @@ export const FILM_NEXT_ACTION_LABELS: Record<FilmNextActionId, string> = {
   grok_login: "请先 grok login",
   run_breakdown: "拆解参考片",
   review_breakdown: "看看拆解对不对",
-  write_script: "下一步本机执行",
+  write_script: "剧本（稍后）",
 }
 
 export function isFilmNextActionId(value: unknown): value is FilmNextActionId {
@@ -156,16 +156,50 @@ export type FilmBreakdownItem = {
   title: string
   body: string
   kind?: string
+  /** 镜号；Nest 可能给 shotIndex / index */
+  shotIndex?: number
+  /** 画面帧 URL（若 Nest 挂在条目上） */
+  frameUrl?: string
+  mediaUrl?: string
+  /** 对白；缺省时用 body（spoken）或与 title/body 映射 */
+  dialogue?: string
+}
+
+/** Nest package.meta.analyze — 拆解诚实状态，勿另造字段名。 */
+export type FilmAnalyzeMeta = {
+  mode?: string
+  hadFrames?: boolean
+  hadTranscript?: boolean
+  blocked?: boolean
+  fallbackFrom?: string
+}
+
+export type FilmPackageMeta = {
+  analyze?: FilmAnalyzeMeta
 }
 
 export type FilmPackage = {
   stages: FilmStage[]
   references: FilmReference[]
   breakdown: FilmBreakdownItem[]
+  /** Nest 正在拆解的参考片 id；有值时跟拍页应显示进行中 */
+  analyzingRefId?: string
+  /** 可选画面帧列表（与 breakdown 镜号对齐或按 ref/shot 挂载） */
+  frames?: FilmFrame[]
+  meta?: FilmPackageMeta
   /** 执行端锁定；字段名 source，值 "vps" | "local" */
   source?: "vps" | "local"
   /** 兼容别名；解析时与 source 同契约 */
   executorSource?: "vps" | "local"
+}
+
+export type FilmFrame = {
+  id?: string
+  refId?: string
+  url?: string
+  mediaUrl?: string
+  shotIndex?: number
+  breakdownId?: string
 }
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
@@ -226,11 +260,37 @@ function parseBreakdownItem(value: unknown): FilmBreakdownItem | null {
   const id = asString(record?.id)
   const title = asString(record?.title)
   if (!record || !id || !title) return null
+  const shotIndex =
+    typeof record.shotIndex === "number"
+      ? record.shotIndex
+      : typeof record.index === "number"
+        ? record.index
+        : undefined
   return {
     id,
     title,
     body: typeof record.body === "string" ? record.body : "",
     kind: asString(record.kind),
+    ...(typeof shotIndex === "number" && Number.isFinite(shotIndex) ? { shotIndex } : {}),
+    frameUrl: asString(record.frameUrl),
+    mediaUrl: asString(record.mediaUrl) ?? asString(record.imageUrl),
+    dialogue: asString(record.dialogue) ?? asString(record.spoken),
+  }
+}
+
+function parseFrame(value: unknown): FilmFrame | null {
+  const record = asRecord(value)
+  if (!record) return null
+  const url = asString(record.url) ?? asString(record.mediaUrl) ?? asString(record.frameUrl)
+  if (!url && !asString(record.id)) return null
+  const shotIndex = typeof record.shotIndex === "number" ? record.shotIndex : undefined
+  return {
+    id: asString(record.id),
+    refId: asString(record.refId),
+    url: asString(record.url),
+    mediaUrl: asString(record.mediaUrl) ?? url,
+    ...(typeof shotIndex === "number" && Number.isFinite(shotIndex) ? { shotIndex } : {}),
+    breakdownId: asString(record.breakdownId),
   }
 }
 
@@ -246,15 +306,56 @@ function parseExecutorSource(value: unknown): "vps" | "local" | undefined {
   return value === "vps" || value === "local" ? value : undefined
 }
 
+
+function parseAnalyzeMeta(value: unknown): FilmAnalyzeMeta | undefined {
+  const record = asRecord(value)
+  if (!record) return undefined
+  const mode = asString(record.mode)
+  const fallbackFrom = asString(record.fallbackFrom)
+  const hadFrames = typeof record.hadFrames === "boolean" ? record.hadFrames : undefined
+  const hadTranscript = typeof record.hadTranscript === "boolean" ? record.hadTranscript : undefined
+  const blocked = typeof record.blocked === "boolean" ? record.blocked : undefined
+  if (
+    mode === undefined &&
+    fallbackFrom === undefined &&
+    hadFrames === undefined &&
+    hadTranscript === undefined &&
+    blocked === undefined
+  ) {
+    return undefined
+  }
+  return {
+    ...(mode ? { mode } : {}),
+    ...(fallbackFrom ? { fallbackFrom } : {}),
+    ...(hadFrames !== undefined ? { hadFrames } : {}),
+    ...(hadTranscript !== undefined ? { hadTranscript } : {}),
+    ...(blocked !== undefined ? { blocked } : {}),
+  }
+}
+
+function parsePackageMeta(value: unknown): FilmPackageMeta | undefined {
+  const record = asRecord(value)
+  if (!record) return undefined
+  const analyze = parseAnalyzeMeta(record.analyze)
+  if (!analyze) return undefined
+  return { analyze }
+}
+
 export function parseFilmPackage(value: unknown): FilmPackage | undefined {
   const record = asRecord(value)
   if (!record) return undefined
   const source = parseExecutorSource(record.source)
   const executorSource = parseExecutorSource(record.executorSource)
+  const analyzingRefId = asString(record.analyzingRefId)
+  const frames = parseList(record.frames, parseFrame)
+  const meta = parsePackageMeta(record.meta)
   return {
     stages: parseList(record.stages, parseStage),
     references: parseList(record.references, parseReference),
     breakdown: parseList(record.breakdown, parseBreakdownItem),
+    ...(analyzingRefId ? { analyzingRefId } : {}),
+    ...(frames.length > 0 ? { frames } : {}),
+    ...(meta ? { meta } : {}),
     ...(source ? { source } : {}),
     ...(executorSource ? { executorSource } : {}),
   }
@@ -285,12 +386,33 @@ export function isFilmStatusBusy(status: unknown) {
   return status === "pending" || status === "running"
 }
 
-export function isFilmProjectBusy(project?: { package?: FilmPackage }) {
+export function filmAnalyzingRefId(project?: {
+  analyzingRefId?: string
+  package?: FilmPackage
+}) {
+  const fromProject = typeof project?.analyzingRefId === "string" ? project.analyzingRefId.trim() : ""
+  if (fromProject) return fromProject
+  const fromPkg = project?.package?.analyzingRefId?.trim() ?? ""
+  return fromPkg || undefined
+}
+
+export function isFilmProjectBusy(project?: {
+  analyzingRefId?: string
+  package?: FilmPackage
+}) {
   const pkg = filmPackageOf(project)
   return (
+    Boolean(filmAnalyzingRefId(project)) ||
     pkg.references.some((item) => item.status === "pending") ||
     pkg.stages.some((item) => item.status === "running")
   )
+}
+
+/** 参考片是否有可拆解媒体（上传就绪或带 url/mediaUrl）。 */
+export function filmReferenceHasParseableMedia(item: FilmReference) {
+  if (item.status !== "ready") return false
+  if (item.source === "upload") return true
+  return Boolean(item.mediaUrl || item.url)
 }
 
 export function filmStatusLabel(status: unknown) {
@@ -339,6 +461,138 @@ export function inferFilmNextActionId(project?: {
     return "review_breakdown"
   }
   return "run_breakdown"
+}
+
+
+/** 镜号展示：优先 shotIndex，否则用列表序号（1-based）。 */
+export function filmBreakdownShotLabel(item: FilmBreakdownItem, index: number) {
+  const n =
+    typeof item.shotIndex === "number" && Number.isFinite(item.shotIndex)
+      ? item.shotIndex
+      : index + 1
+  return `镜号 ${n}`
+}
+
+/**
+ * Nest 契约：title = `镜号 N`；body 含 `画面：` / `对白：`。
+ * 已符合契约则原样展示；否则按 kind/title/body 补全，不另造字段名。
+ */
+export function filmBreakdownPresentation(item: FilmBreakdownItem, index: number, pkg?: FilmPackage) {
+  const kind = (item.kind ?? "").trim().toLowerCase()
+  const rawTitle = item.title.trim()
+  const rawBody = item.body.trim()
+  const titleLooksLikeShot = /^镜号\s*\d+/u.test(rawTitle)
+  const bodyHasVisual = rawBody.includes("画面：")
+  const bodyHasDialogue = rawBody.includes("对白：")
+  const shotLabel = titleLooksLikeShot ? rawTitle : filmBreakdownShotLabel(item, index)
+
+  let body = rawBody
+  if (!bodyHasVisual || !bodyHasDialogue) {
+    let visual = ""
+    let dialogue = (item.dialogue ?? "").trim()
+
+    if (bodyHasVisual || bodyHasDialogue) {
+      // 半契约：保留已有行，补缺的一侧
+      const visualMatch = rawBody.match(/画面：([^\n]*)/)
+      const dialogueMatch = rawBody.match(/对白：([^\n]*)/)
+      visual = visualMatch?.[1]?.trim() ?? ""
+      dialogue = dialogue || dialogueMatch?.[1]?.trim() || ""
+      if (!bodyHasVisual) {
+        if (kind === "shot") visual = visual || rawTitle
+        else if (!titleLooksLikeShot) visual = visual || rawTitle
+      }
+      if (!bodyHasDialogue && kind === "spoken") {
+        dialogue = dialogue || rawBody || rawTitle
+      }
+    } else if (kind === "shot") {
+      visual = rawBody || (!titleLooksLikeShot ? rawTitle : "")
+    } else if (kind === "spoken") {
+      dialogue = dialogue || rawBody || (!titleLooksLikeShot ? rawTitle : "")
+    } else {
+      if (!titleLooksLikeShot) visual = rawTitle
+      dialogue = dialogue || rawBody
+    }
+
+    const lines: string[] = []
+    lines.push(`画面：${visual || "（无）"}`)
+    lines.push(`对白：${dialogue || "（无）"}`)
+    body = lines.join("\n")
+  }
+
+  const frameFromItem = item.frameUrl || item.mediaUrl
+  const frameFromPkg = pkg?.frames?.find((frame) => {
+    if (frame.breakdownId && frame.breakdownId === item.id) return true
+    if (
+      typeof frame.shotIndex === "number" &&
+      typeof item.shotIndex === "number" &&
+      frame.shotIndex === item.shotIndex
+    ) {
+      return true
+    }
+    if (typeof frame.shotIndex === "number" && frame.shotIndex === index + 1) return true
+    return false
+  })
+  const mediaUrl = frameFromItem || frameFromPkg?.mediaUrl || frameFromPkg?.url
+
+  return {
+    title: shotLabel,
+    body: body || undefined,
+    badge: kind === "spoken" ? "对白" : kind === "shot" ? "画面" : "拆解",
+    mediaUrl,
+  }
+}
+
+
+/** 读取 Nest package.meta.analyze */
+export function filmAnalyzeMetaOf(project?: { package?: FilmPackage }): FilmAnalyzeMeta | undefined {
+  return project?.package?.meta?.analyze
+}
+
+/**
+ * 诚实拆解状态文案：
+ * - mode 含 stub / 演示 → 演示
+ * - blocked → 已阻塞，不假装真实拆解
+ * - 否则汇报帧/对白与 fallback
+ */
+export function filmAnalyzeMetaStatusLines(meta?: FilmAnalyzeMeta): string[] {
+  if (!meta) return []
+  const lines: string[] = []
+  const mode = (meta.mode ?? "").trim()
+  const modeLower = mode.toLowerCase()
+  const isStub =
+    modeLower.includes("stub") ||
+    mode.includes("演示") ||
+    modeLower === "demo" ||
+    modeLower.includes("fallback")
+
+  if (meta.blocked === true) {
+    lines.push("拆解已阻塞（blocked），结果不可当作真实拆解")
+  }
+  if (isStub) {
+    lines.push(mode ? `演示拆解（${mode}）` : "演示拆解（stub）")
+  } else if (mode) {
+    lines.push(`拆解模式：${mode}`)
+  }
+  if (meta.fallbackFrom) {
+    lines.push(`回退自：${meta.fallbackFrom}`)
+  }
+  if (meta.hadFrames === true) lines.push("含画面帧")
+  else if (meta.hadFrames === false) lines.push("无画面帧")
+  if (meta.hadTranscript === true) lines.push("含对白转录")
+  else if (meta.hadTranscript === false) lines.push("无对白转录")
+  return lines
+}
+
+export function isFilmAnalyzeMetaStubOrBlocked(meta?: FilmAnalyzeMeta) {
+  if (!meta) return false
+  if (meta.blocked === true) return true
+  const mode = (meta.mode ?? "").toLowerCase()
+  return (
+    mode.includes("stub") ||
+    mode.includes("demo") ||
+    (meta.mode ?? "").includes("演示") ||
+    Boolean(meta.fallbackFrom && mode.includes("fallback"))
+  )
 }
 
 export function filmBreakdownStageId(pkg: FilmPackage): string | undefined {

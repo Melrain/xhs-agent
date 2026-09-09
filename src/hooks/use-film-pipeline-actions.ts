@@ -4,13 +4,29 @@ import { useFilmPipelineMutations } from "@/hooks/use-film-project"
 import type { FilmCardAction } from "@/lib/film-card"
 import {
   canFilmAnalyze,
+  filmAnalyzeGateReason,
   filmGrokAuthLabel,
   filmGrokMissingCheckLabel,
   type FilmGrokPreflight,
   type FilmRunnerSource,
 } from "@/lib/film-grok-preflight"
-import { DEFAULT_FILM_RUNNER_SOURCE, selectFilmRunner } from "@/lib/film/runner"
+import {
+  DEFAULT_FILM_RUNNER_SOURCE,
+  filmLocalRunnerUnavailableLabel,
+  selectFilmRunner,
+} from "@/lib/film/runner"
+import { cacheFilmLocalMediaFile } from "@/lib/film/providers/grok-cli/local"
+import { isTauriRuntime } from "@/lib/api/desktop-fetch"
 import { isFilmStageKind } from "@/lib/film-package"
+
+/** Nest 无媒体等错误原样透出；缺媒体时强调先上传。 */
+function filmPipelineErrorMessage(error: unknown) {
+  const message = studioErrorMessage(error)
+  if (message.includes("需上传视频文件")) {
+    return "需上传视频文件。请优先用「上传视频」，不要只贴链接。"
+  }
+  return message
+}
 
 function isHttpUrl(value: string) {
   try {
@@ -36,15 +52,16 @@ export function useFilmPipelineActions({
 }) {
   const pipeline = useFilmPipelineMutations()
   const [localError, setLocalError] = useState("")
+  const effectiveSource = runnerSource
 
   const mutationError = pipeline.addReference.error
-    ? studioErrorMessage(pipeline.addReference.error)
+    ? filmPipelineErrorMessage(pipeline.addReference.error)
     : pipeline.analyze.error
-      ? studioErrorMessage(pipeline.analyze.error)
+      ? filmPipelineErrorMessage(pipeline.analyze.error)
       : pipeline.approve.error
-        ? studioErrorMessage(pipeline.approve.error)
+        ? filmPipelineErrorMessage(pipeline.approve.error)
         : pipeline.reject.error
-          ? studioErrorMessage(pipeline.reject.error)
+          ? filmPipelineErrorMessage(pipeline.reject.error)
           : ""
   const error = localError || mutationError
 
@@ -75,7 +92,22 @@ export function useFilmPipelineActions({
     }
     setLocalError("")
     try {
-      await pipeline.addReference.mutateAsync({ projectId, file })
+      const project = await pipeline.addReference.mutateAsync({ projectId, file })
+      // 桌面端：Nest 上的 localPath 在 VPS，本机 analyze 需要磁盘副本。
+      if (isTauriRuntime()) {
+        const uploads = [...(project.package?.references ?? [])]
+          .filter((row) => row.source === "upload" && row.status === "ready")
+          .reverse()
+        const newest = uploads[0]
+        if (newest?.id) {
+          try {
+            await cacheFilmLocalMediaFile(projectId, newest.id, file)
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            setLocalError(`本机缓存视频失败：${message}（走本机拆解前请重试上传）`)
+          }
+        }
+      }
     } catch {
       // 页面/卡片下方会显示接口错误
     }
@@ -90,18 +122,30 @@ export function useFilmPipelineActions({
           try {
             const latest = await refreshPreflight()
             if (!canFilmAnalyze(latest)) {
-              setLocalError(analyzeGateLabel || filmGrokAuthLabel(latest))
+              setLocalError(
+                analyzeGateLabel ||
+                  filmAnalyzeGateReason(latest) ||
+                  filmGrokAuthLabel(latest),
+              )
               return
             }
           } catch {
-            setLocalError(filmGrokMissingCheckLabel(runnerSource))
+            setLocalError(filmGrokMissingCheckLabel(effectiveSource))
             return
           }
         } else if (!canAnalyze) {
           setLocalError(analyzeGateLabel || filmGrokAuthLabel())
           return
         }
-        await pipeline.analyze.mutateAsync({ projectId, refId: action.refId })
+        const analyzed = await pipeline.analyze.mutateAsync({
+          projectId,
+          refId: action.refId,
+        })
+        if (analyzed.writebackError) {
+          setLocalError(
+            `拆解写回失败（未持久化到 Nest）：${analyzed.writebackError}`,
+          )
+        }
         return
       }
       if (action.id === "approve" && action.stageId) {
@@ -112,13 +156,18 @@ export function useFilmPipelineActions({
         await pipeline.reject.mutateAsync({ projectId, stageId: action.stageId })
         return
       }
-      if (action.id === "run_local" && !action.disabled && action.stageId && isFilmStageKind(action.stage)) {
-        // 本机执行按钮固定走 GrokCli/local；默认拆解仍由项目 source 解析（默认 vps）
+      if (action.id === "run_local") {
+        if (action.disabled || !action.stageId || !isFilmStageKind(action.stage)) {
+          setLocalError(filmLocalRunnerUnavailableLabel())
+          return
+        }
+        // 本机执行按钮固定走 GrokCli/local；未接线时 runner 会显式 throw。
         await selectFilmRunner("local").runStage({
           projectId,
           stageId: action.stageId,
           stage: action.stage,
         })
+        return
       }
     } catch {
       // 页面/卡片下方会显示接口错误
@@ -133,5 +182,6 @@ export function useFilmPipelineActions({
     submitUrl,
     submitFile,
     runAction,
+    runnerSource: effectiveSource,
   }
 }

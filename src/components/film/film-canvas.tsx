@@ -88,7 +88,7 @@ function FilmCanvasFlow({
   const { cards, pipelineIds } = useMemo(() => {
     const built = filmPipelineCards(project, activeLayouts, {
       canAnalyze,
-      canGenerate: canAnalyze,
+      canGenerate: false,
       analyzeGateLabel,
     })
     return {

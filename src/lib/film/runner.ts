@@ -16,8 +16,12 @@ export type FilmRunStageInput = {
   stage: FilmStageKind
 }
 
-/** analyze 结果：项目 + 本次实际 source */
-export type FilmAnalyzeResult = FilmProject & { source: FilmRunnerSource }
+/** analyze 结果：项目 + 本次实际 source；写回失败时带 writebackError（勿当已持久化）。 */
+export type FilmAnalyzeResult = FilmProject & {
+  source: FilmRunnerSource
+  /** Nest writeback failed; UI must surface — local merge is not persisted. */
+  writebackError?: string
+}
 
 /** runStage 结果：携带同一 source 字段 */
 export type FilmRunStageResult = { source: FilmRunnerSource }
@@ -36,7 +40,7 @@ export type FilmRunner = {
   ): Promise<FilmRunStageResult>
 }
 
-/** 默认走 VPS；本机可选，以后再接选择器。 */
+/** 默认走 VPS。 */
 export const DEFAULT_FILM_RUNNER_SOURCE: FilmRunnerSource = "vps"
 
 export function isFilmRunnerSource(value: unknown): value is FilmRunnerSource {
@@ -70,6 +74,11 @@ export function filmRunnerSourceLabel(source?: FilmRunnerSource | null) {
   return "走 VPS"
 }
 
+/** 本机 worker / analyze 未接线时的明示文案（勿当静默成功）。 */
+export function filmLocalRunnerUnavailableLabel() {
+  return "本机执行尚未接线"
+}
+
 export function selectFilmRunner(
   source: FilmRunnerSource = DEFAULT_FILM_RUNNER_SOURCE,
 ): FilmRunner {
@@ -78,7 +87,7 @@ export function selectFilmRunner(
 }
 
 export function getDefaultFilmRunner(): FilmRunner {
-  return selectFilmRunner(DEFAULT_FILM_RUNNER_SOURCE)
+  return selectFilmRunner(resolveFilmRunnerSource())
 }
 
 export function getFilmRunnerForProject(project?: FilmRunnerSourceInput): FilmRunner {

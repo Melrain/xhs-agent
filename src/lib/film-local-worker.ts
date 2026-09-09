@@ -3,10 +3,12 @@
  * `@/lib/film/providers/grok-cli/local`（GrokCli/local FilmRunner stub）。
  */
 export {
+  cacheFilmLocalMediaFile,
   createGrokCliLocalRunner,
   filmLocalWorkerActionLabel,
   filmLocalWorkerHint,
   filmLocalWorkerStatusLabel,
+  isFilmLocalAnalyzeReady,
   isFilmLocalWorkerReady,
   localGrokCliPreflight,
   probeLocalGrok,
