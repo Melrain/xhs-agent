@@ -77,12 +77,12 @@ export function buildVanityPrompt(draft: VanityLookDraft) {
   const lines = [
     identity,
     hasRefs
-      ? CANVAS_LOCK.replaceAll("底图", tags.person)
+      ? CANVAS_LOCK.split("底图").join(tags.person)
       : "画布：以输入底图为唯一编辑画布，只在原图人物身上改妆造；不要换成别人或另一张构图。",
   ]
 
   if (hasRefs) {
-    lines.push(FRAMING_LOCK.replaceAll("底图", tags.person))
+    lines.push(FRAMING_LOCK.split("底图").join(tags.person))
     lines.push(REF_STYLE_ONLY)
   }
 
