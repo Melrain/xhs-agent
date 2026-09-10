@@ -15,6 +15,8 @@ import {
 import { bakeOverlayBlob } from "@/lib/overlay-bake"
 import { MODE_META } from "@/lib/recruit-mock"
 import { useRecruitAssets } from "@/hooks/use-recruit-assets"
+import { useExecutorSource } from "@/hooks/use-executor-source"
+import { executorSourceLocalUnwiredLabel } from "@/lib/executor-source"
 import {
   isNotFoundJobError,
   isRecruitImageMode,
@@ -59,6 +61,9 @@ export function RecruitWorkspace() {
   const { assets: historyAssets, isPending: historyPending, error: historyError } =
     useRecruitAssets()
   const imageJobs = useRecruitImageJobs()
+  const [executorSource] = useExecutorSource()
+  const localImageBlocked = executorSource === "local"
+  const localUnwiredTip = executorSourceLocalUnwiredLabel()
   const [mode, setMode] = useState<Mode>("t2i")
   const [localUploads, setLocalUploads] = useState<Asset[]>([])
   const [itemsByMode, setItemsByMode] = useState<Partial<Record<Mode, CanvasItem[]>>>({})
@@ -316,14 +321,26 @@ export function RecruitWorkspace() {
   const currentSource = mode === "i2i" ? i2iSource : mode === "text-overlay" ? overlaySource : i2vSource
   const currentPrompt =
     mode === "t2i" ? t2iPrompt : mode === "i2i" ? i2iPrompt : mode === "i2v" ? i2vPrompt : overlayText
+  const imageModeBlocked =
+    localImageBlocked && (mode === "t2i" || mode === "i2i" || mode === "i2v")
   const canGenerate =
-    !busy && (mode === "t2i" || Boolean(currentSource)) && Boolean(currentPrompt.trim())
+    !busy &&
+    !imageModeBlocked &&
+    (mode === "t2i" || Boolean(currentSource)) &&
+    Boolean(currentPrompt.trim())
 
   async function generate() {
     const source = currentSource
     const prompt = currentPrompt
     if (mode !== "t2i" && !source) return
     if (!prompt.trim()) return
+    if (isRecruitImageMode(mode) && localImageBlocked) {
+      setMissingJobError((current) => ({
+        ...current,
+        [mode]: localUnwiredTip,
+      }))
+      return
+    }
 
     if (mode === "text-overlay" && source) {
       if (overlayBusy) return
@@ -663,13 +680,23 @@ export function RecruitWorkspace() {
             </label>
           </div>
         ) : null}
+        {imageModeBlocked ? (
+          <p className="status-text" style={{ marginBottom: 8 }}>
+            {localUnwiredTip}
+          </p>
+        ) : null}
         <button
           type="button"
           className="primary-btn"
           disabled={!canGenerate}
+          title={imageModeBlocked ? localUnwiredTip : undefined}
           onClick={() => void generate()}
         >
-          {busy ? `${mode === "text-overlay" ? "合成中" : "生成中"} ${elapsed}s` : MODE_META[mode].action}
+          {imageModeBlocked
+            ? localUnwiredTip
+            : busy
+              ? `${mode === "text-overlay" ? "合成中" : "生成中"} ${elapsed}s`
+              : MODE_META[mode].action}
         </button>
       </aside>
 

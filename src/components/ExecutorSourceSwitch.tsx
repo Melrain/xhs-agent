@@ -1,13 +1,11 @@
 import {
   executorSourceLabel,
-  executorSourceLocalUnwiredLabel,
   type ExecutorSource,
 } from "@/lib/executor-source"
 
 /**
  * Global「走 VPS / 走本机」switch.
- * Desktop: both options (unless `locked`).
- * Web (`platform="web"`): VPS-only — local chip stays visible but disabled.
+ * Default unlocked (both options). Pass locked / platform only for rare force-lock.
  */
 export function ExecutorSourceSwitch({
   value,
@@ -20,21 +18,21 @@ export function ExecutorSourceSwitch({
 }: {
   value: ExecutorSource
   onChange: (next: ExecutorSource) => void
-  /** When true, non-active option is disabled (e.g. film project already pinned source). */
+  /** When true, non-active option is disabled. */
   locked?: boolean
-  /** web = VPS-only (isomorphic with web app); desktop = both. */
+  /** Retained for isomorphism; web no longer force-locks VPS. */
   platform?: "web" | "desktop"
   /**
-   * Optional tip beside the chips (isomorphic with web).
-   * Web: 「网页端仅 VPS」; desktop: makeup-style local-unwired hint.
+   * Optional tip beside the chips.
+   * Unlocked tip: film routes by preference; image local unwired when selected.
    */
   showTip?: boolean
   className?: string
   lockLabel?: string
 }) {
-  const webOnly = platform === "web"
+  void platform
   const vpsDisabled = locked && value !== "vps"
-  const localDisabled = webOnly || (locked && value !== "local")
+  const localDisabled = locked && value !== "local"
 
   function select(next: ExecutorSource) {
     if (next === value) return
@@ -43,9 +41,9 @@ export function ExecutorSourceSwitch({
     onChange(next)
   }
 
-  const tipText = webOnly
-    ? "网页端仅 VPS"
-    : executorSourceLocalUnwiredLabel()
+  const tipText = locked
+    ? lockLabel
+    : "影片走所选执行端；出图本机通路未接时会提示"
 
   return (
     <p
@@ -66,7 +64,6 @@ export function ExecutorSourceSwitch({
         className={`executor-source-chip${value === "local" ? " is-active" : ""}`}
         aria-pressed={value === "local"}
         disabled={localDisabled}
-        title={webOnly ? "网页端仅支持走 VPS" : undefined}
         onClick={() => select("local")}
       >
         {executorSourceLabel("local")}

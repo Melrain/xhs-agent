@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ExecutorSourceSwitch } from "@/components/ExecutorSourceSwitch"
 import { useExecutorSource } from "@/hooks/use-executor-source"
+import { executorSourceLocalUnwiredLabel } from "@/lib/executor-source"
 import { studioErrorMessage } from "@/lib/api/client"
 import { toVanityUserRef } from "@/lib/api/vanity-refs"
 import type { CharacterCard, LookCard } from "@/lib/api/characters"
@@ -36,6 +37,8 @@ import {
 
 export function MakeupWorkspace() {
   const [executorSource, setExecutorSource] = useExecutorSource()
+  const localImageBlocked = executorSource === "local"
+  const localUnwiredTip = executorSourceLocalUnwiredLabel()
   const [selectedId, setSelectedId] = useState<string>()
   const [scope, setScope] = useState<"current" | "all">("current")
   const charactersQuery = useCharacters()
@@ -113,6 +116,10 @@ export function MakeupWorkspace() {
   )
 
   async function generate() {
+    if (localImageBlocked) {
+      setNotice(localUnwiredTip)
+      return
+    }
     if (
       !selected ||
       !canGenerateVanityLook(liveDraft) ||
@@ -192,7 +199,11 @@ export function MakeupWorkspace() {
         <div className="makeup-toolbar-meta">
           <p className={notice ? "status-text" : "status-text makeup-toolbar-hint"}>
             {notice ??
-              (generateBusy ? "正在出图…" : "选一张脸，再选妆造和服装参考后出图。")}
+              (localImageBlocked
+                ? localUnwiredTip
+                : generateBusy
+                  ? "正在出图…"
+                  : "选一张脸，再选妆造和服装参考后出图。")}
           </p>
           {notice ? (
             <button type="button" className="ghost-btn compact" onClick={() => setNotice(undefined)}>
@@ -239,10 +250,16 @@ export function MakeupWorkspace() {
           <button
             type="button"
             className="primary-btn"
-            disabled={!selected || !canGenerateVanityLook(liveDraft) || generateBusy}
+            disabled={
+              localImageBlocked ||
+              !selected ||
+              !canGenerateVanityLook(liveDraft) ||
+              generateBusy
+            }
+            title={localImageBlocked ? localUnwiredTip : undefined}
             onClick={() => void generate()}
           >
-            {generateLabel}
+            {localImageBlocked ? localUnwiredTip : generateLabel}
           </button>
         </div>
       </header>

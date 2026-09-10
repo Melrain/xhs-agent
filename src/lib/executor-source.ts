@@ -87,7 +87,7 @@ export function executorSourceLabel(source?: ExecutorSource | null) {
   return "走 VPS"
 }
 
-/** Makeup (and similar) has no local runner yet — honest copy only. */
-export function executorSourceLocalUnwiredLabel(feature = "妆造") {
-  return `${feature}本机执行尚未接线，出图仍走云端`
+/** Makeup / recruit image: local path not wired — must disable generate (never silent cloud). */
+export function executorSourceLocalUnwiredLabel(feature = "出图") {
+  return `本机${feature}未接线`
 }
