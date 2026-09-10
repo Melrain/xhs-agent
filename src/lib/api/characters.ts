@@ -1,5 +1,6 @@
 import { backendFetch, StudioApiError } from "@/lib/api/client"
 import { asLookCards } from "@/lib/look-cache"
+import { imageProviderRequestField } from "@/lib/image-provider"
 import type { ImageQuality, ImageResolution } from "@/lib/types"
 
 export type LookStatus = "pending" | "ready" | "failed"
@@ -85,6 +86,7 @@ function renderBody(settings: RenderSettings) {
     quality: explicit(settings.quality),
     resolution: explicit(settings.resolution),
     model: settings.model?.trim() || undefined,
+    ...imageProviderRequestField(),
   }
 }
 
