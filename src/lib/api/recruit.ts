@@ -6,6 +6,7 @@ import {
   STUDIO_VIDEO_TIMEOUT_MS,
   StudioApiError,
 } from "@/lib/api/client"
+import { imageProviderRequestField, resolveImageProvider, type ImageProvider } from "@/lib/image-provider"
 import type {
   AspectRatio,
   Asset,
@@ -167,6 +168,7 @@ export async function enqueueGenerateImage(
     quality?: ImageQuality
     resolution?: ImageResolution
     model?: string
+    provider?: ImageProvider
   },
   options?: { signal?: AbortSignal },
 ) {
@@ -180,6 +182,7 @@ export async function enqueueGenerateImage(
       quality: explicit(input.quality),
       resolution: explicit(input.resolution),
       model: input.model,
+      ...imageProviderRequestField(input.provider),
     }),
     timeoutMs: ENQUEUE_TIMEOUT_MS,
     signal: options?.signal,
@@ -207,6 +210,7 @@ export async function enqueueEditImage(
     quality?: ImageQuality
     resolution?: ImageResolution
     model?: string
+    provider?: ImageProvider
   },
   options?: { signal?: AbortSignal },
 ) {
@@ -222,6 +226,7 @@ export async function enqueueEditImage(
   if (quality) form.append("quality", quality)
   if (resolution) form.append("resolution", resolution)
   if (input.model?.trim()) form.append("model", input.model.trim())
+  form.append("provider", resolveImageProvider(input.provider))
 
   return backendFetch<EnqueueResponse>(mediaPath("/image/edit"), {
     method: "POST",
@@ -252,6 +257,7 @@ export async function enqueueGenerateVideo(
     aspectRatio?: VideoAspectRatio
     resolution?: VideoResolution
     model?: string
+    provider?: ImageProvider
   },
   options?: { signal?: AbortSignal },
 ) {
@@ -263,6 +269,7 @@ export async function enqueueGenerateVideo(
   }
   if (input.resolution) form.append("resolution", input.resolution)
   if (input.model?.trim()) form.append("model", input.model.trim())
+  form.append("provider", resolveImageProvider(input.provider))
   if (input.source.s3Key) {
     form.append("s3Key", input.source.s3Key)
   } else {
