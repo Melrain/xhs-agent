@@ -7,6 +7,7 @@ import { VANITY_USER_REFS_KEY } from "@/hooks/use-vanity-refs"
 import { getAccessToken, subscribeAuthStorage } from "@/lib/auth/tokens"
 import { resetPresignedUrlCache } from "@/lib/media-url"
 import { ExecutorSourceSwitch } from "@/components/ExecutorSourceSwitch"
+import { ImageProviderSwitch } from "@/components/ImageProviderSwitch"
 import { useExecutorSource } from "@/hooks/use-executor-source"
 import { useUserEvents } from "@/hooks/use-user-events"
 import { useLiveEventsWanted } from "@/lib/live-events-gate"
@@ -82,12 +83,15 @@ function AppShell() {
               <h2>{meta?.label}</h2>
               <p>{meta?.hint}</p>
             </div>
-            <ExecutorSourceSwitch
-              className="topbar-executor-source"
-              value={executorSource}
-              platform="desktop"
-              onChange={setExecutorSource}
-            />
+            <div className="topbar-switches">
+              <ImageProviderSwitch className="topbar-image-provider" />
+              <ExecutorSourceSwitch
+                className="topbar-executor-source"
+                value={executorSource}
+                platform="desktop"
+                onChange={setExecutorSource}
+              />
+            </div>
           </header>
         </div>
         <div className="app-stage">
