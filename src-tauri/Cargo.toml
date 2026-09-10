@@ -1,6 +1,6 @@
 [package]
 name = "xhs-agent"
-version = "0.1.23"
+version = "0.1.24"
 description = "Local Xiaohongshu CLI executor"
 authors = ["you"]
 edition = "2021"
