@@ -97,13 +97,13 @@ export function FilmStudio() {
         {hint ? <span className="film-phase">{hint}</span> : null}
         {busy ? <span className="film-phase-busy">进行中</span> : null}
         {view === "follow" ? (
-          <button
-            type="button"
-            className="ghost-btn compact film-view-toggle"
-            onClick={() => setView("canvas")}
+          <span
+            className="ghost-btn compact film-view-toggle is-disabled"
+            title="本页只验证解析，画布暂未开放"
+            aria-disabled="true"
           >
             打开画布
-          </button>
+          </span>
         ) : (
           <button
             type="button"

@@ -316,7 +316,7 @@ export function filmPipelineCards(
           analyzingRefId || stage.status === "running"
             ? "正在拆解参考片，请稍候…"
             : nextActionId === "run_breakdown"
-              ? "参考片已就绪。确认执行端后，点参考片上的「解析」开始拆解（不会自动解析）。"
+              ? "参考片已就绪。确认执行端后，点预览下的「解析」开始拆解（不会自动解析）。"
               : "还没有拆解结果。先上传参考片并完成检查。",
       })
       cards.push(card)

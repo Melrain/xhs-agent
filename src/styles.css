@@ -2469,7 +2469,40 @@ select {
 .film-follow {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.film-follow-layout {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.film-follow-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.film-follow-center {
+  min-height: 0;
+  flex: 1;
   overflow: auto;
+  padding: 20px 24px max(72px, env(safe-area-inset-bottom, 0px));
+}
+
+.film-follow-river {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(640px, 100%);
+  margin: 0 auto;
 }
 
 .film-follow-stack {
@@ -2479,6 +2512,503 @@ select {
   width: min(720px, calc(100% - 48px));
   margin: 0 auto;
   padding: 28px 0 max(56px, env(safe-area-inset-bottom, 0px));
+}
+
+.film-follow-progress-rail {
+  z-index: 2;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raise);
+  padding: 8px 24px;
+}
+
+.film-follow-progress-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--line) 90%, transparent);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  padding: 6px;
+}
+
+.film-follow-progress-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.film-follow-progress-sep {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 2px;
+}
+
+.film-follow-progress-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, #ffffff 55%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.film-follow-progress-btn.is-current {
+  background: #ffffff;
+  color: #4338ca;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  font-weight: 700;
+}
+
+.film-follow-progress-btn.is-done {
+  background: #ffffff;
+  color: #047857;
+}
+
+.film-follow-progress-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  font-size: 11px;
+}
+
+.film-follow-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  border: 1px solid color-mix(in srgb, #e4e4e7 90%, transparent);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+}
+
+.film-follow-stage.is-ring {
+  box-shadow: 0 0 0 2px color-mix(in srgb, #6366f1 55%, transparent);
+}
+
+.film-follow-stage-head,
+.film-follow-collapse-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.film-follow-stage-head h2,
+.film-follow-collapse-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.film-follow-stage-meta {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.film-follow-collapse-head {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.film-follow-upload-ready {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  padding: 10px 12px;
+}
+
+.film-follow-upload-ready-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.film-follow-upload-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.film-follow-upload-sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.film-follow-swap {
+  margin-top: 8px;
+}
+
+.film-follow-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(100%, 18rem);
+  margin: 0 auto;
+}
+
+.film-follow-preview-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  max-height: min(28rem, 55dvh);
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--bg-soft);
+}
+
+.film-follow-preview-empty {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 7.5rem;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.film-follow-preview-meta {
+  padding: 0 2px;
+}
+
+.film-follow-preview-hint {
+  text-align: center;
+}
+
+.film-follow-parse-cta {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #4f46e5;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.film-follow-parse-cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.film-follow-parse-cta.is-secondary {
+  background: #ffffff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.film-follow-analyze-disabled {
+  margin: 0;
+  text-align: center;
+  color: #b45309;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.film-follow-parse-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.film-follow-parse-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-soft);
+}
+
+.film-follow-parse-bar > span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: #6366f1;
+  animation: film-follow-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes film-follow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(40%);
+  }
+}
+
+.film-follow-parse-done {
+  margin: 0;
+  color: #047857;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.film-follow-parse-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.film-follow-status {
+  display: none;
+  width: 300px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: #ffffff;
+  padding: 20px 18px;
+}
+
+.film-follow-status-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.film-follow-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, #e4e4e7 90%, transparent);
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+}
+
+.film-follow-status-card.is-warn {
+  border-color: color-mix(in srgb, #f59e0b 35%, transparent);
+  background: color-mix(in srgb, #fffbeb 70%, #ffffff);
+}
+
+.film-follow-status-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.film-follow-status-card-head h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.film-follow-status-pill {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 650;
+  background: var(--bg-soft);
+  color: var(--muted);
+}
+
+.film-follow-status-pill.is-ok {
+  border-color: color-mix(in srgb, #10b981 30%, transparent);
+  background: color-mix(in srgb, #ecfdf5 80%, #ffffff);
+  color: #047857;
+}
+
+.film-follow-status-pill.is-warn {
+  border-color: color-mix(in srgb, #f59e0b 35%, transparent);
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.film-follow-status-pill.is-bad {
+  border-color: color-mix(in srgb, #ef4444 35%, transparent);
+  background: color-mix(in srgb, #fef2f2 80%, #ffffff);
+  color: var(--bad);
+}
+
+.film-follow-preflight-layers {
+  margin: 0;
+}
+
+.film-follow-preflight-layers > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  font-size: 12px;
+}
+
+.film-follow-preflight-layers > div:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.film-follow-preflight-layers dt {
+  color: var(--muted);
+}
+
+.film-follow-preflight-layers dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.film-follow-preflight-layers dd.is-muted {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.film-follow-preflight-layers dd.is-ok {
+  color: var(--ink);
+}
+
+.film-follow-preflight-layers dd.is-warn {
+  color: #b45309;
+}
+
+.film-follow-preflight-layers dd.is-bad {
+  color: var(--bad);
+}
+
+.film-follow-status-note,
+.film-follow-guidance {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.film-follow-status-warn {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, #fb7185 35%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, #fff1f2 80%, #ffffff);
+  padding: 10px 12px;
+  color: #9f1239;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.film-follow-link {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: #4f46e5;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+
+.film-follow-link:hover {
+  text-decoration: underline;
+}
+
+.film-follow-status-trigger {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-raise) 92%, transparent);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+.film-follow-status-trigger .ghost-btn {
+  width: 100%;
+}
+
+.film-follow-status-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+
+.film-follow-status-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(0 0 0 / 45%);
+}
+
+.film-follow-status-panel {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  max-height: 75dvh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--bg-raise);
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 24px rgb(0 0 0 / 12%);
+}
+
+.film-follow-status-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.film-follow-status-panel-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.film-view-toggle.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  color: var(--muted);
+}
+
+@media (min-width: 1100px) {
+  .film-follow-status {
+    display: flex;
+  }
+
+  .film-follow-status-trigger,
+  .film-follow-status-sheet {
+    display: none;
+  }
+
+  .film-follow-center {
+    padding-bottom: 28px;
+  }
 }
 
 .film-follow-intro {
