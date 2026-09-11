@@ -17,7 +17,7 @@ import {
 } from "@/lib/film/runner"
 import { cacheFilmLocalMediaFile } from "@/lib/film/providers/grok-cli/local"
 import { isTauriRuntime } from "@/lib/api/desktop-fetch"
-import { isFilmStageKind } from "@/lib/film-package"
+import { isFilmStageKind, isFilmVideoFile } from "@/lib/film-package"
 
 /** Nest 无媒体等错误原样透出；缺媒体时强调先上传。 */
 function filmPipelineErrorMessage(error: unknown) {
@@ -86,8 +86,8 @@ export function useFilmPipelineActions({
 
   async function submitFile(file: File) {
     if (!projectId) return
-    if (!file.type.startsWith("video/") && !/\.(mp4|mov|webm|mkv)$/i.test(file.name)) {
-      setLocalError("请选择视频文件")
+    if (!isFilmVideoFile(file)) {
+      setLocalError("请上传视频文件（上传优先）。")
       return
     }
     setLocalError("")

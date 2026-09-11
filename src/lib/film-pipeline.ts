@@ -232,7 +232,7 @@ export function filmPipelineCards(
           createFilmCard("reference", positionOf(id, index, layouts), {
             id,
             title: stage.label || "参考片",
-            body: "优先上传视频；链接导入为次要方式。导入后会出现在这里。",
+            body: "上传优先：先传本地视频；链接导入为次要方式。导入后会出现在这里。",
             locked: true,
             ingest: true,
             busy: projectBusy || stage.status === "running",

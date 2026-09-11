@@ -64,6 +64,53 @@ export type FilmReferenceSource = (typeof FILM_REFERENCE_SOURCES)[number]
 export const FILM_REFERENCE_STATUSES = ["pending", "ready", "failed"] as const
 export type FilmReferenceStatus = (typeof FILM_REFERENCE_STATUSES)[number]
 
+/** Supported reference upload extensions (case-insensitive). Aligned with web. */
+export const FILM_VIDEO_EXTENSIONS = [
+  "mp4",
+  "mov",
+  "webm",
+  "m4v",
+  "mkv",
+  "avi",
+  "mpeg",
+  "mpg",
+  "3gp",
+  "ts",
+  "m2ts",
+  "ogv",
+] as const
+
+/** Human-readable list for UI copy. */
+export const FILM_VIDEO_FORMAT_LABEL = FILM_VIDEO_EXTENSIONS.join(" / ")
+
+/**
+ * `<input accept>` value: extensions + common MIME types browsers report.
+ */
+export const FILM_VIDEO_ACCEPT = [
+  ...FILM_VIDEO_EXTENSIONS.map((ext) => `.${ext}`),
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-m4v",
+  "video/mpeg",
+  "video/x-matroska",
+  "video/x-msvideo",
+  "video/3gpp",
+  "video/mp2t",
+  "video/ogg",
+].join(",")
+
+const FILM_VIDEO_EXT_RE = new RegExp(
+  `\\.(${FILM_VIDEO_EXTENSIONS.join("|")})$`,
+  "i",
+)
+
+export function isFilmVideoFile(file: File) {
+  if (file.type.startsWith("video/")) return true
+  return FILM_VIDEO_EXT_RE.test(file.name)
+}
+
+
 export function isFilmStageKind(value: unknown): value is FilmStageKind {
   return typeof value === "string" && (FILM_STAGES as readonly string[]).includes(value)
 }

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { FILM_VIDEO_ACCEPT, FILM_VIDEO_FORMAT_LABEL } from "@/lib/film-package"
 
 export function FilmIngestForm({
   disabled,
@@ -36,7 +37,9 @@ export function FilmIngestForm({
           上传视频
         </button>
       </div>
-      <p className="film-ingest-hint">优先上传本地视频文件</p>
+      <p className="film-ingest-hint">
+        {`上传优先：先传本地视频（${FILM_VIDEO_FORMAT_LABEL}）；链接导入为次要方式。`}
+      </p>
       <div className="film-ingest-url-secondary">
         <input
           type="text"
@@ -59,7 +62,7 @@ export function FilmIngestForm({
       <input
         ref={fileRef}
         type="file"
-        accept="video/*,.mp4,.mov,.webm,.mkv"
+        accept={FILM_VIDEO_ACCEPT}
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0]
