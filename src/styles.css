@@ -2494,15 +2494,20 @@ select {
   min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: 20px 24px max(72px, env(safe-area-inset-bottom, 0px));
+  padding: 12px 24px max(72px, env(safe-area-inset-bottom, 0px));
 }
 
 .film-follow-river {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
   width: min(640px, 100%);
   margin: 0 auto;
+}
+
+.film-follow-river.is-wide {
+  width: min(64rem, 100%);
+  gap: 8px;
 }
 
 .film-follow-stack {
@@ -2519,7 +2524,7 @@ select {
   flex-shrink: 0;
   border-bottom: 1px solid var(--line);
   background: var(--bg-raise);
-  padding: 8px 24px;
+  padding: 6px 24px;
 }
 
 .film-follow-progress-nav {
@@ -2591,6 +2596,11 @@ select {
   box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
 }
 
+.film-follow-stage.is-dense {
+  gap: 8px;
+  padding: 12px;
+}
+
 .film-follow-stage.is-ring {
   box-shadow: 0 0 0 2px color-mix(in srgb, #6366f1 55%, transparent);
 }
@@ -2624,6 +2634,57 @@ select {
   padding: 0;
   cursor: pointer;
   text-align: left;
+}
+
+.film-follow-upload-bar {
+  border: 1px solid color-mix(in srgb, #e4e4e7 90%, transparent);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+}
+
+.film-follow-upload-bar.is-ring {
+  box-shadow: 0 0 0 2px color-mix(in srgb, #6366f1 55%, transparent);
+}
+
+.film-follow-upload-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+}
+
+@media (min-width: 640px) {
+  .film-follow-upload-bar-row {
+    height: 40px;
+  }
+}
+
+.film-follow-upload-bar-title {
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.film-follow-upload-bar-swap {
+  flex-shrink: 0;
+  height: 28px;
+  padding-inline: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.film-follow-upload-bar-note {
+  margin: 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  padding: 4px 12px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .film-follow-upload-ready {
@@ -2663,30 +2724,40 @@ select {
 .film-follow-preview {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: min(100%, 18rem);
-  margin: 0 auto;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+}
+
+.film-follow-preview-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: min(36vh, 280px);
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--bg-soft);
 }
 
 .film-follow-preview-video {
   display: block;
-  width: 100%;
-  aspect-ratio: 9 / 16;
-  max-height: min(28rem, 55dvh);
-  object-fit: cover;
-  border-radius: 12px;
-  background: var(--bg-soft);
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  background: transparent;
 }
 
 .film-follow-preview-empty {
   display: grid;
   place-items: center;
   width: 100%;
-  min-height: 7.5rem;
-  border-radius: 12px;
-  background: var(--bg-soft);
+  height: 100%;
+  min-height: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .film-follow-preview-meta {
@@ -2699,12 +2770,13 @@ select {
 
 .film-follow-parse-cta {
   width: 100%;
+  height: 36px;
   border: 0;
-  border-radius: 12px;
-  padding: 10px 14px;
+  border-radius: 8px;
+  padding: 0 14px;
   background: #4f46e5;
   color: #ffffff;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
   cursor: pointer;
 }
@@ -2725,7 +2797,40 @@ select {
   text-align: center;
   color: #b45309;
   font-size: 11px;
+  line-height: 1.25;
+}
+
+.film-follow-parse-strip {
+  border: 1px solid color-mix(in srgb, #e4e4e7 80%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, #ffffff 80%, transparent);
+  padding: 8px 12px;
+  box-shadow: 0 1px 1px rgb(0 0 0 / 2%);
+}
+
+.film-follow-parse-strip.is-ring {
+  box-shadow: 0 0 0 2px color-mix(in srgb, #6366f1 55%, transparent);
+}
+
+.film-follow-parse-line {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
   line-height: 1.5;
+}
+
+.film-follow-parse-line.is-running {
+  color: #b45309;
+}
+
+.film-follow-parse-line.is-error {
+  color: var(--bad);
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
 }
 
 .film-follow-parse-progress {
@@ -2764,15 +2869,40 @@ select {
 
 .film-follow-parse-done {
   margin: 0;
-  color: #047857;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
 }
 
 .film-follow-parse-error {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.film-follow-parse-retry {
+  flex-shrink: 0;
+  height: 28px;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.film-follow-split {
+  display: grid;
+  gap: 12px;
+}
+
+.film-follow-split-left {
+  display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 8px;
+}
+
+.film-follow-breakdown-stage.is-side {
+  margin-top: 0;
 }
 
 .film-follow-status {
@@ -3007,7 +3137,23 @@ select {
   }
 
   .film-follow-center {
-    padding-bottom: 28px;
+    padding-bottom: 12px;
+  }
+
+  .film-follow-river.is-wide {
+    gap: 12px;
+  }
+
+  .film-follow-split {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+
+  .film-follow-preview-frame {
+    height: min(42vh, 360px);
+  }
+
+  .film-follow-split .film-follow-breakdown.is-scroll {
+    max-height: min(calc(42vh + 5.5rem), 420px);
   }
 }
 
@@ -3187,6 +3333,18 @@ select {
   width: fit-content;
 }
 
+.film-follow .film-ingest-dropzone {
+  gap: 6px;
+  padding: 10px;
+}
+
+.film-follow .film-ingest-dropzone .primary-btn {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
 .film-ingest-advanced {
   margin: 0;
   color: var(--muted);
@@ -3236,6 +3394,15 @@ select {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.film-follow-breakdown.is-scroll {
+  max-height: min(calc(36vh + 6rem), 360px);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, #e4e4e7 90%, transparent);
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 0;
 }
 
 .film-follow-analyze-meta {

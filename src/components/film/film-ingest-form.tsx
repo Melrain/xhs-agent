@@ -57,7 +57,7 @@ export function FilmIngestForm({
       >
         <button
           type="button"
-          className="primary-btn"
+          className="primary-btn compact"
           disabled={disabled}
           onClick={() => fileRef.current?.click()}
         >

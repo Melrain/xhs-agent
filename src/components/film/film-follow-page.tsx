@@ -21,7 +21,6 @@ import {
   filmNextActionMessage,
   filmPackageOf,
   filmReferenceHasParseableMedia,
-  filmSourceLabel,
   filmStageByKind,
   isFilmAnalyzeMetaStubOrBlocked,
   isFilmProjectBusy,
@@ -167,7 +166,7 @@ function StageBlock({
   return (
     <section
       id={id}
-      className={`film-follow-stage${highlight ? " is-ring" : ""}`}
+      className={`film-follow-stage is-dense${highlight ? " is-ring" : ""}`}
     >
       <div className="film-follow-stage-head">
         <h2>{title}</h2>
@@ -334,7 +333,7 @@ export function FilmFollowPage({
     )
   }
 
-  const showDropzone = !step1Ok || !hasMedia || swapOpen || !hasReference
+  const readyBar = Boolean(reference && step1Ok && hasMedia && !swapOpen)
   const canStartAnalyze =
     step1Ok &&
     hasMedia &&
@@ -514,7 +513,9 @@ export function FilmFollowPage({
             onSelect={(anchor) => scrollToAnchor(anchor)}
           />
           <div className="film-follow-center">
-            <div className="film-follow-river">
+            <div
+              className={`film-follow-river${hasBreakdown ? " is-wide" : ""}`}
+            >
               <header className="film-follow-intro">
                 <p className="film-follow-kicker">爆款复制 · 跟拍核对</p>
                 <h2>跟拍参考片</h2>
@@ -530,40 +531,36 @@ export function FilmFollowPage({
                 />
               ))}
 
-              <StageBlock
-                id="upload"
-                title="上传"
-                meta={
-                  step1Ok && hasMedia && !swapOpen
-                    ? "已读入"
-                    : "上传后可预览，再解析"
-                }
-                highlight={ringId === "upload"}
-              >
-                {step1Ok && hasMedia && !swapOpen && reference ? (
-                  <div className="film-follow-upload-ready">
-                    <div className="film-follow-upload-ready-copy">
-                      <p className="film-follow-upload-title">
-                        已读入 · {reference.title?.trim() || "参考片"}
-                      </p>
-                      <p className="film-follow-upload-sub">
-                        {filmSourceLabel(reference.source) ||
-                          (reference.source === "upload" ? "上传" : "链接")}
-                        {reference.status?.trim()
-                          ? ` · ${reference.status.trim()}`
-                          : ""}
-                      </p>
-                    </div>
+              {readyBar && reference ? (
+                <section
+                  id="upload"
+                  className={`film-follow-upload-bar${ringId === "upload" ? " is-ring" : ""}`}
+                >
+                  <div className="film-follow-upload-bar-row">
+                    <p className="film-follow-upload-title film-follow-upload-bar-title">
+                      已读入 · {reference.title?.trim() || "参考片"}
+                    </p>
                     <button
                       type="button"
-                      className="ghost-btn compact"
+                      className="ghost-btn compact film-follow-upload-bar-swap"
                       onClick={() => setSwapOpen(true)}
                     >
                       换源
                     </button>
                   </div>
-                ) : null}
-                {showDropzone ? (
+                  {actions.ingestBusy ? (
+                    <p className="film-follow-upload-bar-note" role="status">
+                      正在上传参考片…
+                    </p>
+                  ) : null}
+                </section>
+              ) : (
+                <StageBlock
+                  id="upload"
+                  title="上传"
+                  meta="上传后可预览，再解析"
+                  highlight={ringId === "upload"}
+                >
                   <div className={step1Ok && hasMedia ? "film-follow-swap" : undefined}>
                     <FilmIngestForm
                       disabled={actions.ingestBusy || analyzeRunning}
@@ -584,161 +581,267 @@ export function FilmFollowPage({
                       </button>
                     ) : null}
                   </div>
-                ) : null}
-                {actions.ingestBusy ? (
-                  <p className="film-follow-running" role="status">
-                    正在上传参考片…
-                  </p>
-                ) : null}
-              </StageBlock>
-
-              <StageBlock
-                id="preview"
-                title="预览"
-                meta="主操作在下方"
-                highlight={ringId === "preview"}
-              >
-                <div className="film-follow-preview">
-                  {reference?.mediaUrl?.trim() ? (
-                    <video
-                      className="film-follow-preview-video"
-                      src={reference.mediaUrl}
-                      controls
-                      muted
-                      playsInline
-                    />
-                  ) : (
-                    <div className="film-follow-preview-empty">暂无预览</div>
-                  )}
-                  {reference ? (
-                    <div className="film-follow-preview-meta">
-                      <p className="film-follow-upload-title">
-                        {reference.title?.trim() || "参考片"}
-                      </p>
-                      <p className="film-follow-upload-sub">
-                        {[
-                          filmSourceLabel(reference.source),
-                          reference.url,
-                          reference.status === "pending"
-                            ? "正在上传参考片…"
-                            : reference.status === "failed"
-                              ? "导入失败，请重新上传视频。"
-                              : hasMedia
-                                ? "上传完成，可预览。点击下方「解析」开始拆解。"
-                                : "已上传，暂无预览",
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="film-follow-upload-sub film-follow-preview-hint">
-                      上传后在此预览
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    className={`film-follow-parse-cta${hasBreakdown && !analyzeRunning ? " is-secondary" : " primary-btn"}`}
-                    disabled={!canStartAnalyze}
-                    onClick={runPrimaryAnalyze}
-                  >
-                    {primaryLabel}
-                  </button>
-                  {analyzeDisabledReason ? (
-                    <p className="film-follow-analyze-disabled">{analyzeDisabledReason}</p>
-                  ) : null}
-                </div>
-              </StageBlock>
-
-              <StageBlock
-                id="parse"
-                title="解析"
-                meta={
-                  analyzeRunning ? "进行中" : hasBreakdown ? "完成" : "待命"
-                }
-                highlight={ringId === "parse"}
-              >
-                {!analyzeRunning && !hasBreakdown && !actions.error?.trim() ? (
-                  <p className="film-follow-upload-sub">
-                    点上方「解析」开始。进度会显示在这里。
-                  </p>
-                ) : null}
-                {analyzeRunning ? (
-                  <div className="film-follow-parse-progress">
-                    <div className="film-follow-parse-bar" aria-hidden>
-                      <span />
-                    </div>
+                  {actions.ingestBusy ? (
                     <p className="film-follow-running" role="status">
-                      正在解析影片…
-                      {analyzingRefId ? `（ref ${analyzingRefId}）` : ""}
+                      正在上传参考片…
                     </p>
+                  ) : null}
+                </StageBlock>
+              )}
+
+              {hasBreakdown ? (
+                <div className="film-follow-split">
+                  <div className="film-follow-split-left">
+                    <StageBlock
+                      id="preview"
+                      title="预览"
+                      meta={
+                        reference
+                          ? reference.title?.trim() || "参考片"
+                          : "上传后在此预览"
+                      }
+                      highlight={ringId === "preview"}
+                    >
+                      <div className="film-follow-preview">
+                        <div className="film-follow-preview-frame">
+                          {reference?.mediaUrl?.trim() ? (
+                            <video
+                              className="film-follow-preview-video"
+                              src={reference.mediaUrl}
+                              controls
+                              muted
+                              playsInline
+                            />
+                          ) : (
+                            <div className="film-follow-preview-empty">暂无预览</div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className={`film-follow-parse-cta${hasBreakdown && !analyzeRunning ? " is-secondary" : ""}`}
+                          disabled={!canStartAnalyze}
+                          onClick={runPrimaryAnalyze}
+                        >
+                          {primaryLabel}
+                        </button>
+                        {analyzeDisabledReason ? (
+                          <p className="film-follow-analyze-disabled">
+                            {analyzeDisabledReason}
+                          </p>
+                        ) : null}
+                      </div>
+                    </StageBlock>
+
+                    <section
+                      id="parse"
+                      className={`film-follow-parse-strip${ringId === "parse" ? " is-ring" : ""}`}
+                    >
+                      {!analyzeRunning &&
+                      !hasBreakdown &&
+                      !actions.error?.trim() ? (
+                        <p className="film-follow-parse-line">
+                          点上方「解析」开始。进度会显示在这里。
+                        </p>
+                      ) : null}
+                      {analyzeRunning ? (
+                        <p className="film-follow-parse-line is-running" role="status">
+                          正在解析影片…
+                          {analyzingRefId ? `（ref ${analyzingRefId}）` : ""}
+                        </p>
+                      ) : null}
+                      {!analyzeRunning && actions.error?.trim() ? (
+                        <div className="film-follow-parse-error">
+                          <p className="film-follow-parse-line is-error" role="alert">
+                            {actions.error}
+                          </p>
+                          <button
+                            type="button"
+                            className="primary-btn compact film-follow-parse-retry"
+                            disabled={!canStartAnalyze}
+                            onClick={runPrimaryAnalyze}
+                          >
+                            重试
+                          </button>
+                        </div>
+                      ) : null}
+                      {!analyzeRunning &&
+                      hasBreakdown &&
+                      !actions.error?.trim() ? (
+                        <p className="film-follow-parse-line">解析完成</p>
+                      ) : null}
+                    </section>
                   </div>
-                ) : null}
-                {!analyzeRunning && actions.error?.trim() ? (
-                  <div className="film-follow-parse-error">
-                    <p className="film-stage-error" role="alert">
-                      {actions.error}
-                    </p>
+
+                  <section
+                    id="breakdown"
+                    className={`film-follow-stage is-dense film-follow-breakdown-stage is-side${ringId === "breakdown" ? " is-ring" : ""}`}
+                  >
                     <button
                       type="button"
-                      className="primary-btn compact"
-                      disabled={!canStartAnalyze}
-                      onClick={runPrimaryAnalyze}
+                      className="film-follow-collapse-head"
+                      aria-expanded={breakdownOpen}
+                      onClick={() => {
+                        if (hasBreakdown) setBreakdownOpen((v) => !v)
+                      }}
                     >
-                      重试解析
-                    </button>
-                  </div>
-                ) : null}
-                {!analyzeRunning && hasBreakdown && !actions.error?.trim() ? (
-                  <p className="film-follow-parse-done">
-                    解析完成，拆解结果在下方。
-                  </p>
-                ) : null}
-              </StageBlock>
-
-              <section
-                id="breakdown"
-                className={`film-follow-stage${ringId === "breakdown" ? " is-ring" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="film-follow-collapse-head"
-                  aria-expanded={breakdownOpen}
-                  onClick={() => {
-                    if (hasBreakdown) setBreakdownOpen((v) => !v)
-                  }}
-                >
-                  <h2>
-                    拆解
-                    {hasBreakdown ? (
+                      <h2>
+                        拆解
+                        {hasBreakdown ? (
+                          <span className="film-follow-stage-meta">
+                            · {pkg.breakdown.length}
+                          </span>
+                        ) : null}
+                      </h2>
                       <span className="film-follow-stage-meta">
-                        · {pkg.breakdown.length}
+                        {!hasBreakdown
+                          ? "解析后展开"
+                          : breakdownOpen
+                            ? "收起"
+                            : "展开"}
                       </span>
+                    </button>
+                    {breakdownOpen ? (
+                      <div className="film-follow-breakdown is-scroll">
+                        {analyzeStubOrBlocked ? (
+                          <p className="film-follow-analyze-warn">
+                            当前为演示或已阻塞结果，请勿当作完整真实拆解。
+                          </p>
+                        ) : null}
+                        {breakdownCards.map(renderBreakdownCard)}
+                      </div>
                     ) : null}
-                  </h2>
-                  <span className="film-follow-stage-meta">
-                    {!hasBreakdown ? "解析后展开" : breakdownOpen ? "收起" : "展开"}
-                  </span>
-                </button>
-                {!hasBreakdown ? (
-                  <p className="film-follow-upload-sub">
-                    解析完成后会自动展开镜号、画面与对白。
-                  </p>
-                ) : breakdownOpen ? (
-                  <div className="film-follow-breakdown">
-                    {analyzeStubOrBlocked ? (
-                      <p className="film-follow-analyze-warn">
-                        当前为演示或已阻塞结果，请勿当作完整真实拆解。
+                  </section>
+                </div>
+              ) : (
+                <>
+                  <StageBlock
+                    id="preview"
+                    title="预览"
+                    meta={
+                      reference
+                        ? reference.title?.trim() || "参考片"
+                        : "上传后在此预览"
+                    }
+                    highlight={ringId === "preview"}
+                  >
+                    <div className="film-follow-preview">
+                      <div className="film-follow-preview-frame">
+                        {reference?.mediaUrl?.trim() ? (
+                          <video
+                            className="film-follow-preview-video"
+                            src={reference.mediaUrl}
+                            controls
+                            muted
+                            playsInline
+                          />
+                        ) : (
+                          <div className="film-follow-preview-empty">暂无预览</div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className={`film-follow-parse-cta${hasBreakdown && !analyzeRunning ? " is-secondary" : ""}`}
+                        disabled={!canStartAnalyze}
+                        onClick={runPrimaryAnalyze}
+                      >
+                        {primaryLabel}
+                      </button>
+                      {analyzeDisabledReason ? (
+                        <p className="film-follow-analyze-disabled">
+                          {analyzeDisabledReason}
+                        </p>
+                      ) : null}
+                    </div>
+                  </StageBlock>
+
+                  <section
+                    id="parse"
+                    className={`film-follow-parse-strip${ringId === "parse" ? " is-ring" : ""}`}
+                  >
+                    {!analyzeRunning &&
+                    !hasBreakdown &&
+                    !actions.error?.trim() ? (
+                      <p className="film-follow-parse-line">
+                        点上方「解析」开始。进度会显示在这里。
                       </p>
                     ) : null}
-                    {breakdownCards.map(renderBreakdownCard)}
-                  </div>
-                ) : null}
-              </section>
+                    {analyzeRunning ? (
+                      <p className="film-follow-parse-line is-running" role="status">
+                        正在解析影片…
+                        {analyzingRefId ? `（ref ${analyzingRefId}）` : ""}
+                      </p>
+                    ) : null}
+                    {!analyzeRunning && actions.error?.trim() ? (
+                      <div className="film-follow-parse-error">
+                        <p className="film-follow-parse-line is-error" role="alert">
+                          {actions.error}
+                        </p>
+                        <button
+                          type="button"
+                          className="primary-btn compact film-follow-parse-retry"
+                          disabled={!canStartAnalyze}
+                          onClick={runPrimaryAnalyze}
+                        >
+                          重试
+                        </button>
+                      </div>
+                    ) : null}
+                    {!analyzeRunning &&
+                    hasBreakdown &&
+                    !actions.error?.trim() ? (
+                      <p className="film-follow-parse-line">解析完成</p>
+                    ) : null}
+                  </section>
+
+                  <section
+                    id="breakdown"
+                    className={`film-follow-stage is-dense film-follow-breakdown-stage${ringId === "breakdown" ? " is-ring" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="film-follow-collapse-head"
+                      aria-expanded={breakdownOpen}
+                      onClick={() => {
+                        if (hasBreakdown) setBreakdownOpen((v) => !v)
+                      }}
+                    >
+                      <h2>
+                        拆解
+                        {hasBreakdown ? (
+                          <span className="film-follow-stage-meta">
+                            · {pkg.breakdown.length}
+                          </span>
+                        ) : null}
+                      </h2>
+                      <span className="film-follow-stage-meta">
+                        {!hasBreakdown
+                          ? "解析后展开"
+                          : breakdownOpen
+                            ? "收起"
+                            : "展开"}
+                      </span>
+                    </button>
+                    {!hasBreakdown ? (
+                      <p className="film-follow-upload-sub">
+                        解析完成后会自动展开镜号、画面与对白。
+                      </p>
+                    ) : breakdownOpen ? (
+                      <div className="film-follow-breakdown is-scroll">
+                        {analyzeStubOrBlocked ? (
+                          <p className="film-follow-analyze-warn">
+                            当前为演示或已阻塞结果，请勿当作完整真实拆解。
+                          </p>
+                        ) : null}
+                        {breakdownCards.map(renderBreakdownCard)}
+                      </div>
+                    ) : null}
+                  </section>
+                </>
+              )}
 
               <section
                 id="script"
-                className={`film-follow-stage${ringId === "script" ? " is-ring" : ""}`}
+                className={`film-follow-stage is-dense${ringId === "script" ? " is-ring" : ""}`}
               >
                 <button
                   type="button"
