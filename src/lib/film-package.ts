@@ -198,6 +198,12 @@ export type FilmReference = {
   mediaUrl?: string
 }
 
+export type FilmScript = {
+  id: string
+  title: string
+  body: string
+}
+
 export type FilmBreakdownItem = {
   id: string
   title: string
@@ -229,6 +235,7 @@ export type FilmPackage = {
   stages: FilmStage[]
   references: FilmReference[]
   breakdown: FilmBreakdownItem[]
+  script?: FilmScript
   /** Nest 正在拆解的参考片 id；有值时跟拍页应显示进行中 */
   analyzingRefId?: string
   /** 可选画面帧列表（与 breakdown 镜号对齐或按 ref/shot 挂载） */
@@ -299,6 +306,18 @@ function parseReference(value: unknown): FilmReference | null {
     url: asString(record.url),
     title: asString(record.title),
     mediaUrl: asString(record.mediaUrl),
+  }
+}
+
+function parseScript(value: unknown): FilmScript | null {
+  const record = asRecord(value)
+  const id = asString(record?.id)
+  const title = asString(record?.title)
+  if (!record || !id) return null
+  return {
+    id,
+    title: title ?? "",
+    body: typeof record.body === "string" ? record.body : "",
   }
 }
 
@@ -396,10 +415,12 @@ export function parseFilmPackage(value: unknown): FilmPackage | undefined {
   const analyzingRefId = asString(record.analyzingRefId)
   const frames = parseList(record.frames, parseFrame)
   const meta = parsePackageMeta(record.meta)
+  const script = parseScript(record.script)
   return {
     stages: parseList(record.stages, parseStage),
     references: parseList(record.references, parseReference),
     breakdown: parseList(record.breakdown, parseBreakdownItem),
+    ...(script ? { script } : {}),
     ...(analyzingRefId ? { analyzingRefId } : {}),
     ...(frames.length > 0 ? { frames } : {}),
     ...(meta ? { meta } : {}),
