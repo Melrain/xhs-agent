@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "node --experimental-strip-types --test src/lib/look-cache.test.ts src/lib/media-url.test.ts src/lib/sse.test.ts src/lib/api/user-events-parse.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/look-cache.test.ts src/lib/media-url.test.ts src/lib/sse.test.ts src/lib/api/user-events-parse.test.ts src/lib/film-package.infer.test.ts",
     "preview": "vite preview",
     "tauri": "tauri"
   },

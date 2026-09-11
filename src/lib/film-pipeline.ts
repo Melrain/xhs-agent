@@ -199,7 +199,15 @@ export function filmPipelineCards(
   const analyzingRefId = filmAnalyzingRefId(project)
   const stages = pkg.stages.length > 0 ? pkg.stages : fallbackStages()
   const hasReference = pkg.references.length > 0
-  const showPipeline = pkg.stages.length > 0 || hasReference || nextActionId !== "ingest_reference"
+  const primaryReference = pkg.references[0]
+  // URL ingest failed / still pending: stay on ingest — do not open breakdown step UI.
+  const ingestIncomplete =
+    !primaryReference ||
+    primaryReference.status === "pending" ||
+    primaryReference.status === "failed"
+  const showPipeline =
+    !ingestIncomplete &&
+    (pkg.stages.length > 0 || hasReference || nextActionId !== "ingest_reference")
   const projectBusy = isFilmProjectBusy(project)
 
   if (project?.brief.trim()) {

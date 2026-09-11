@@ -460,13 +460,15 @@ export function inferFilmNextActionId(project?: {
   nextAction?: FilmNextAction
   package?: FilmPackage
 }): FilmNextActionId | undefined {
-  if (isFilmNextActionId(project?.nextAction?.id)) return project.nextAction.id
   const pkg = filmPackageOf(project)
   const reference = pkg.references[0]
   const breakdownStage = filmStageByKind(pkg, "breakdown")
+  // Failed / pending ingest must stay on ingest — do not trust a stale nextAction
+  // (e.g. run_breakdown) that would unlock analyze / pipeline progression.
   if (!reference || reference.status === "pending" || reference.status === "failed") {
     return "ingest_reference"
   }
+  if (isFilmNextActionId(project?.nextAction?.id)) return project.nextAction.id
   if (project?.phase === "script" || breakdownStage?.status === "approved") {
     return "write_script"
   }
