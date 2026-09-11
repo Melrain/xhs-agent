@@ -66,7 +66,7 @@ function referenceBody(item: FilmReference) {
   if (item.url) lines.push(item.url)
   if (item.source === "upload" && !item.mediaUrl) lines.push("已上传，暂无预览")
   if (item.status === "pending") lines.push("正在导入参考片…")
-  if (item.status === "failed") lines.push("导入失败，请重新上传视频，或换一条链接。")
+  if (item.status === "failed") lines.push("导入失败，请重新上传视频。")
   return lines.join("\n") || undefined
 }
 
@@ -232,7 +232,7 @@ export function filmPipelineCards(
           createFilmCard("reference", positionOf(id, index, layouts), {
             id,
             title: stage.label || "参考片",
-            body: "上传优先：先传本地视频；链接导入为次要方式。导入后会出现在这里。",
+            body: "先上传本地视频；导入后会出现在这里。",
             locked: true,
             ingest: true,
             busy: projectBusy || stage.status === "running",

@@ -168,7 +168,7 @@ export function FilmFollowPage({
           <p className="film-follow-kicker">爆款复制 · 跟拍核对</p>
           <h2>跟拍参考片</h2>
           <p>
-            {`只验证拆解：上传优先：先传视频 → 检查 ${endpointLabel}（${filmRunnerSourceLabel(source)}）→ 核对镜号 / 画面 / 对白。本机可切换；走本机时用本机 grok / ffmpeg / whisper 真实拆解。剧本与后续生成先收起。`}
+            {`只验证拆解：先上传视频 → 检查 ${endpointLabel}（${filmRunnerSourceLabel(source)}）→ 核对镜号 / 画面 / 对白。本机可切换；走本机时用本机 grok / ffmpeg / whisper 真实拆解。剧本与后续生成先收起。`}
           </p>
           <ExecutorSourceSwitch
             className="film-follow-source-pin"
@@ -204,8 +204,8 @@ export function FilmFollowPage({
                 : preflightError ||
                   (canAnalyze
                     ? source === "local"
-                      ? "可以拆解参考片（本机）。没有可拆解媒体时请先上传视频（上传优先）。"
-                      : "可以拆解参考片（VPS）。没有可拆解媒体时请先上传视频（上传优先）。"
+                      ? "可以拆解参考片（本机）。没有可拆解媒体时请先上传视频。"
+                      : "可以拆解参考片（VPS）。没有可拆解媒体时请先上传视频。"
                     : gateReason || filmGrokAuthLabel(grokStatus)))}
           </p>
           {analyzeRunning ? (
