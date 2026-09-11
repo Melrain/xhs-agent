@@ -3222,11 +3222,12 @@ select {
 }
 
 .film-follow-empty-card {
+  /* Flat shell — dashed chrome lives on the dropzone itself (web FilmReferenceEntry). */
   width: min(28rem, 100%);
-  border: 1px dashed color-mix(in srgb, var(--line) 95%, transparent);
-  border-radius: 14px;
+  border: none;
+  border-radius: 0;
   background: transparent;
-  padding: 28px 20px;
+  padding: 0;
 }
 
 .film-follow-stage-river {
@@ -3698,39 +3699,75 @@ select {
 
 .film-ingest-hint {
   margin: 0;
-  color: var(--muted);
-  font-size: 12px;
+  color: color-mix(in srgb, var(--muted) 85%, transparent);
+  font-size: 11px;
+  line-height: 1.25rem;
+  text-align: center;
 }
 
 .film-ingest-dropzone {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 12px;
-  border: 1px dashed var(--line);
+  width: 100%;
+  min-height: 11rem;
+  padding: 40px 24px;
+  border: 1px dashed color-mix(in srgb, var(--line) 90%, #94a3b8);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--bg) 88%, var(--line));
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.film-ingest-dropzone:hover:not(.is-busy) {
+  border-color: color-mix(in srgb, #818cf8 55%, var(--line));
+  background: color-mix(in srgb, var(--bg) 92%, #f1f5f9);
+}
+
+.film-ingest-dropzone:focus-visible {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #818cf8 40%, transparent);
 }
 
 .film-ingest-dropzone.is-dragging {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  border-color: #818cf8;
+  background: color-mix(in srgb, #818cf8 10%, var(--bg));
 }
 
-.film-ingest-dropzone .primary-btn {
-  width: fit-content;
+.film-ingest-dropzone.is-busy {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.6;
+}
+
+.film-ingest-dropzone-icon {
+  width: 32px;
+  height: 32px;
+  stroke-width: 1.5;
+  color: color-mix(in srgb, var(--muted) 55%, #cbd5e1);
+  flex-shrink: 0;
+}
+
+.film-ingest-dropzone-icon.is-dragging {
+  color: #818cf8;
+}
+
+.film-ingest-dropzone-primary {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.25rem;
+  color: color-mix(in srgb, var(--muted) 92%, #64748b);
 }
 
 .film-follow .film-ingest-dropzone {
-  gap: 6px;
-  padding: 10px;
-}
-
-.film-follow .film-ingest-dropzone .primary-btn {
-  height: 32px;
-  padding: 0 12px;
-  font-size: 13px;
-  border-radius: 8px;
+  min-height: 7.5rem;
+  padding: 24px;
+  gap: 8px;
 }
 
 .film-ingest-advanced {

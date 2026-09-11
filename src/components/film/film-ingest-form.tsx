@@ -1,4 +1,5 @@
-import { useRef, useState, type DragEvent } from "react"
+import { useRef, useState, type DragEvent, type KeyboardEvent } from "react"
+import { Upload } from "lucide-react"
 import { FILM_VIDEO_ACCEPT, FILM_VIDEO_FORMAT_LABEL } from "@/lib/film-package"
 
 export function FilmIngestForm({
@@ -38,6 +39,19 @@ export function FilmIngestForm({
     pickFile(event.dataTransfer.files?.[0])
   }
 
+  function openPicker() {
+    if (disabled) return
+    fileRef.current?.click()
+  }
+
+  function onDropzoneKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (disabled) return
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault()
+      openPicker()
+    }
+  }
+
   return (
     <form
       className={`film-ingest${dragClass}`}
@@ -50,21 +64,26 @@ export function FilmIngestForm({
       }}
     >
       <div
-        className={`film-ingest-dropzone${dragging ? " is-dragging" : ""}`}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        aria-label="点击或拖拽上传参考视频"
+        className={`film-ingest-dropzone${dragging ? " is-dragging" : ""}${disabled ? " is-busy" : ""}`}
+        onClick={openPicker}
+        onKeyDown={onDropzoneKeyDown}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
-        <button
-          type="button"
-          className="primary-btn compact"
-          disabled={disabled}
-          onClick={() => fileRef.current?.click()}
-        >
-          上传视频
-        </button>
+        <Upload
+          className={`film-ingest-dropzone-icon${dragging ? " is-dragging" : ""}`}
+          aria-hidden
+        />
+        <p className="film-ingest-dropzone-primary">
+          {disabled ? "上传中…" : "点击或拖拽上传"}
+        </p>
         <p className="film-ingest-hint">
-          {`拖拽或选择本地视频（${FILM_VIDEO_FORMAT_LABEL}）。不超过 50MB；上传到云端后可预览，再点「解析」。`}
+          {`${FILM_VIDEO_FORMAT_LABEL} · ≤50MB`}
         </p>
       </div>
       <details className="film-ingest-advanced">
