@@ -168,7 +168,7 @@ export function FilmFollowPage({
           <p className="film-follow-kicker">爆款复制 · 跟拍核对</p>
           <h2>跟拍参考片</h2>
           <p>
-            {`只验证拆解：先上传视频 → 检查 ${endpointLabel}（${filmRunnerSourceLabel(source)}）→ 核对镜号 / 画面 / 对白。本机可切换；走本机时用本机 grok / ffmpeg / whisper 真实拆解。剧本与后续生成先收起。`}
+            {`只验证拆解：上传视频到云端 → 预览 → 检查 ${endpointLabel}（${filmRunnerSourceLabel(source)}）→ 点击「解析」拆解 → 核对镜号 / 画面 / 对白。上传后不会自动解析。本机可切换；走本机时用本机 grok / ffmpeg / whisper。剧本与后续生成先收起。`}
           </p>
           <ExecutorSourceSwitch
             className="film-follow-source-pin"

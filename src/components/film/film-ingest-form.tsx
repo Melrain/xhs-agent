@@ -64,7 +64,7 @@ export function FilmIngestForm({
           上传视频
         </button>
         <p className="film-ingest-hint">
-          {`拖拽或选择本地视频（${FILM_VIDEO_FORMAT_LABEL}）。优先直接上传以便解析。`}
+          {`拖拽或选择本地视频（${FILM_VIDEO_FORMAT_LABEL}）。不超过 50MB；上传到云端后可预览，再点「解析」。`}
         </p>
       </div>
       <details className="film-ingest-advanced">

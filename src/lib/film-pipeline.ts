@@ -64,8 +64,14 @@ function referenceBody(item: FilmReference) {
   const source = filmSourceLabel(item.source)
   if (source) lines.push(source)
   if (item.url) lines.push(item.url)
-  if (item.source === "upload" && !item.mediaUrl) lines.push("已上传，暂无预览")
-  if (item.status === "pending") lines.push("正在导入参考片…")
+  if (item.source === "upload") {
+    lines.push(
+      item.mediaUrl?.trim()
+        ? "上传完成，可预览。点击「解析」开始拆解。"
+        : "已上传，暂无预览",
+    )
+  }
+  if (item.status === "pending") lines.push("正在上传参考片…")
   if (item.status === "failed") lines.push("导入失败，请重新上传视频。")
   return lines.join("\n") || undefined
 }
@@ -99,16 +105,16 @@ function referenceActions(
   const hasMedia = filmReferenceHasParseableMedia(item)
   const blocked = !canAnalyze || !hasMedia || analyzingRefId === item.id
   const title = analyzingRefId === item.id
-    ? "正在拆解…"
+    ? "正在解析…"
     : !hasMedia
       ? "没有可拆解的媒体"
       : canAnalyze
-        ? undefined
+        ? "上传完成。点击后开始拆解（不会自动解析）。"
         : gateLabel
   return [
     {
       id: "analyze",
-      label: analyzingRefId === item.id ? "正在拆解…" : "拆解这段参考片",
+      label: analyzingRefId === item.id ? "正在解析…" : "解析",
       title,
       variant: "primary",
       refId: item.id,
@@ -232,7 +238,7 @@ export function filmPipelineCards(
           createFilmCard("reference", positionOf(id, index, layouts), {
             id,
             title: stage.label || "参考片",
-            body: "先上传本地视频；导入后会出现在这里。",
+            body: "先上传本地视频到云端；上传后可预览，再点「解析」拆解。",
             locked: true,
             ingest: true,
             busy: projectBusy || stage.status === "running",
@@ -310,8 +316,8 @@ export function filmPipelineCards(
           analyzingRefId || stage.status === "running"
             ? "正在拆解参考片，请稍候…"
             : nextActionId === "run_breakdown"
-              ? "参考片已就绪。确认执行端 grok / ffmpeg 后，点参考片上的按钮开始拆解。"
-              : "还没有拆解结果。先导入参考片并完成检查。",
+              ? "参考片已就绪。确认执行端后，点参考片上的「解析」开始拆解（不会自动解析）。"
+              : "还没有拆解结果。先上传参考片并完成检查。",
       })
       cards.push(card)
       pipelineIds.push(card.id)

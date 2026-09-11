@@ -335,7 +335,7 @@ async function runLocalAnalyze(
   }
   if (!mediaPath && reference.source === "upload" && !mediaUrl) {
     throw new Error(
-      "需上传视频文件。本机拆解需要本地磁盘上的视频：请在桌面端重新上传，上传时会缓存到本机。",
+      "需上传视频文件。本机拆解需要本地磁盘或云端 mediaUrl：请在桌面端重新上传（会缓存到本机；Nest R2 也会回传预览地址）。",
     )
   }
 

@@ -92,8 +92,11 @@ export function useFilmPipelineActions({
     }
     setLocalError("")
     try {
+      // Ingest only (Nest → R2 + mediaUrl). Do NOT chain analyze/breakdown here —
+      // user clicks「解析」on the reference card when nextAction is run_breakdown.
       const project = await pipeline.addReference.mutateAsync({ projectId, file })
-      // 桌面端：Nest 上的 localPath 在 VPS，本机 analyze 需要磁盘副本。
+      // Optional: cache a local disk copy for source=local analyze. Nest mediaUrl
+      // (R2 presign) is enough for preview + VPS analyze; local runner prefers disk.
       if (isTauriRuntime()) {
         const uploads = [...(project.package?.references ?? [])]
           .filter((row) => row.source === "upload" && row.status === "ready")
@@ -104,7 +107,8 @@ export function useFilmPipelineActions({
             await cacheFilmLocalMediaFile(projectId, newest.id, file)
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
-            setLocalError(`本机缓存视频失败：${message}（走本机拆解前请重试上传）`)
+            // Soft warning: R2 mediaUrl still allows preview / VPS; local path only needed for local.
+            setLocalError(`本机缓存视频失败：${message}（云端预览仍可用；本机拆解前请重试上传）`)
           }
         }
       }
